@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROICMS — Railway Officer Inspection & Compliance Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            railway: {
+              navy: '#0F1E36',
+              blue: '#1E3A8A',
+              lightBlue: '#3B82F6',
+              maroon: '#800000',
+              gold: '#D97706',
+              cream: '#F8FAFC'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    .badge-glow {
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.35);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Top Announcement Bar -->
+  <aside class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white text-xs sm:text-sm py-2 px-4 text-center font-medium border-b border-blue-800/50 flex items-center justify-center space-x-2">
+    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Native Android App</span>
+    <span>•</span>
+    <span>Indian Railways Officer Inspection & Compliance System (ROICMS)</span>
+    <span>•</span>
+    <span class="text-blue-200">Deployed via Vercel</span>
+  </aside>
+
+  <!-- Header -->
+  <header class="bg-white/90 backdrop-blur sticky top-0 z-50 border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-900 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-900/20">
+          🚆
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">ROICMS Portal</h1>
+          <p class="text-xs text-slate-500 hidden sm:block">Indian Railways Inspection & Compliance Suite</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <a href="#how-to-run" class="text-xs sm:text-sm font-semibold text-slate-600 hover:text-blue-900 px-3 py-1.5 rounded-lg transition">How to Run</a>
+        <a href="#features" class="text-xs sm:text-sm font-semibold text-slate-600 hover:text-blue-900 px-3 py-1.5 rounded-lg transition hidden md:block">Features</a>
+        <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg shadow-sm hover:shadow transition transform active:scale-95">
+          <span>Launch Live App</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="flex-grow">
+    <section class="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-blue-50/70 via-white to-slate-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-100/80 text-blue-800 text-xs font-semibold">
+              <span class="flex h-2 w-2 relative">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+              </span>
+              <span>Kotlin + Jetpack Compose • Android Native</span>
+            </div>
+
+            <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+              Indian Railways Officer Inspection & Compliance System
+            </h2>
+
+            <p class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+              A mission-critical enterprise Android application for Railway Officers and Supervisors to schedule, conduct, geotag, and review track, station, and loco inspections with automated Microsoft Word (.docx) & Excel (.xlsx) dossier generation.
+            </p>
+
+            <!-- Notice Callout on Vercel deployment -->
+            <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm text-left shadow-sm">
+              <div class="flex items-start space-x-3">
+                <div class="text-lg flex-shrink-0">ℹ️</div>
+                <div>
+                  <h4 class="font-bold text-amber-950">Why did Vercel show 404 previously?</h4>
+                  <p class="text-xs sm:text-sm text-amber-800 mt-1 leading-relaxed">
+                    This repository is a <strong>Native Android Mobile App (Gradle & Kotlin)</strong> compiled into an <code>.apk</code> bundle. Vercel is a web host designed to serve HTML/JS files. We added this web portal to your GitHub repository so your Vercel deployment provides immediate access to live previews, APK download guides, and documentation.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- CTA Buttons -->
+            <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
+              <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition transform hover:-translate-y-0.5">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Launch Interactive Web Emulator</span>
+              </a>
+
+              <a href="#how-to-run" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-white hover:bg-slate-100 text-slate-800 font-semibold px-6 py-3.5 rounded-xl border border-slate-300 shadow-sm transition">
+                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <span>Get APK / Run on Device</span>
+              </a>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-3 gap-4 pt-4 border-t border-slate-200 text-center sm:text-left">
+              <div>
+                <p class="text-2xl font-bold text-slate-900">100%</p>
+                <p class="text-xs text-slate-500 font-medium">Offline-First Room DB</p>
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-blue-600">M3</p>
+                <p class="text-xs text-slate-500 font-medium">Material 3 Expressive UI</p>
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-indigo-600">Docx + Xlsx</p>
+                <p class="text-xs text-slate-500 font-medium">Automated Dossier Export</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Device Preview Mockup -->
+          <div class="lg:col-span-5 flex justify-center">
+            <div class="relative w-[280px] sm:w-[320px] rounded-[42px] bg-slate-900 p-3 shadow-2xl border-4 border-slate-800 ring-1 ring-slate-700/50">
+              <!-- Camera Notch -->
+              <div class="absolute top-6 left-1/2 transform -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full z-20 flex items-center justify-center">
+                <div class="w-2.5 h-2.5 bg-slate-950 rounded-full border border-slate-800"></div>
+              </div>
+
+              <!-- Phone Screen Content -->
+              <div class="rounded-[32px] overflow-hidden bg-white text-slate-900 text-xs shadow-inner flex flex-col h-[580px] relative border border-slate-100">
+                
+                <!-- Mock Header -->
+                <div class="bg-blue-900 text-white p-4 pt-7">
+                  <div class="flex justify-between items-center">
+                    <div>
+                      <p class="text-xs text-blue-200">Officer Portal</p>
+                      <p class="text-sm font-bold">RAVI • Dual-Role</p>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full bg-blue-800 text-[10px] text-blue-200 font-semibold border border-blue-700">Online</span>
+                  </div>
+                  <!-- Stats Chips -->
+                  <div class="grid grid-cols-4 gap-1 text-center mt-3 bg-blue-950/60 p-1.5 rounded-lg text-[10px]">
+                    <div><span class="font-bold text-rose-400">2</span><br><span class="text-[8px] text-slate-300">Assigned</span></div>
+                    <div><span class="font-bold text-amber-300">0</span><br><span class="text-[8px] text-slate-300">Spot/Self</span></div>
+                    <div><span class="font-bold text-blue-300">1</span><br><span class="text-[8px] text-slate-300">Active</span></div>
+                    <div><span class="font-bold text-emerald-400">0</span><br><span class="text-[8px] text-slate-300">Done</span></div>
+                  </div>
+                </div>
+
+                <!-- Mock Search & Actions -->
+                <div class="p-3 bg-slate-50 border-b border-slate-200 space-y-2">
+                  <div class="flex items-center space-x-2">
+                    <div class="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 flex-1 text-slate-400 flex items-center space-x-1.5">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                      <span>Search by #, type, location...</span>
+                    </div>
+                    <div class="bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg flex items-center space-x-1">
+                      <span>Filters</span>
+                    </div>
+                  </div>
+                  <div class="flex space-x-1.5 overflow-x-hidden text-[10px]">
+                    <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">👁️ View Dossier</span>
+                    <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">📊 Excel</span>
+                    <span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-medium">📄 Word</span>
+                  </div>
+                </div>
+
+                <!-- Mock Inspection Items -->
+                <div class="p-3 flex-1 overflow-y-auto space-y-2 bg-slate-100/50">
+                  <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-1">
+                    <div class="flex justify-between items-center">
+                      <span class="font-bold text-slate-900 text-xs">INSP-2026-0042</span>
+                      <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">IN PROGRESS</span>
+                    </div>
+                    <p class="font-semibold text-slate-800 text-xs">Station Joint Safety Inspection</p>
+                    <p class="text-[10px] text-slate-500">📍 New Delhi Central (NDLS) • Platform 4</p>
+                    <div class="pt-1 flex justify-between items-center text-[10px] text-slate-600 border-t border-slate-100 mt-1">
+                      <span>Target: Today 14:00</span>
+                      <span class="text-blue-600 font-semibold">Resume &rarr;</span>
+                    </div>
+                  </div>
+
+                  <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-1">
+                    <div class="flex justify-between items-center">
+                      <span class="font-bold text-slate-900 text-xs">INSP-2026-0039</span>
+                      <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[9px] font-bold">ASSIGNED</span>
+                    </div>
+                    <p class="font-semibold text-slate-800 text-xs">Footplating Section Inspection</p>
+                    <p class="text-[10px] text-slate-500">📍 Ghaziabad - Kanpur Main Line</p>
+                    <div class="pt-1 flex justify-between items-center text-[10px] text-slate-600 border-t border-slate-100 mt-1">
+                      <span>Scheduled: 26 Sep 2026</span>
+                      <span class="text-emerald-600 font-semibold">Start &rarr;</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Mock Bottom Nav -->
+                <div class="bg-white border-t border-slate-200 px-4 py-2 flex justify-between items-center text-[9px] text-slate-500">
+                  <div class="text-blue-600 font-bold flex flex-col items-center">
+                    <span>📋</span>
+                    <span>Inspections</span>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <span>⚠️</span>
+                    <span>Compliances</span>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <span>📊</span>
+                    <span>Reports</span>
+                  </div>
+                  <div class="flex flex-col items-center">
+                    <span>🛡️</span>
+                    <span>Admin</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Run Section -->
+    <section id="how-to-run" class="py-16 bg-white border-t border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-3xl mx-auto mb-12">
+          <span class="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Deployment & Execution</span>
+          <h3 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-3">How to Run & Deploy the Android Application</h3>
+          <p class="text-slate-600 text-sm sm:text-base mt-2">Choose the method that works best for your workflow:</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          
+          <!-- Method 1: Browser Live Streaming -->
+          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xl mb-4">
+                🌐
+              </div>
+              <h4 class="text-lg font-bold text-slate-900">1. Instant Browser Emulator</h4>
+              <p class="text-xs text-slate-500 mt-1 font-medium">Recommended for quick review & testing</p>
+              <p class="text-sm text-slate-600 mt-3 leading-relaxed">
+                Stream the complete native Android app live in your web browser with zero installation. Works on any laptop or desktop.
+              </p>
+            </div>
+            <div class="pt-6">
+              <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition">
+                <span>Open Browser Emulator</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Method 2: Android Studio Build -->
+          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xl mb-4">
+                💻
+              </div>
+              <h4 class="text-lg font-bold text-slate-900">2. Android Studio (Full Build)</h4>
+              <p class="text-xs text-slate-500 mt-1 font-medium">For developers and release engineering</p>
+              <ol class="text-xs text-slate-600 mt-3 space-y-2 list-decimal list-inside leading-relaxed font-sans">
+                <li>Clone this GitHub repository to your computer.</li>
+                <li>Open the folder in <strong>Android Studio Ladybug / Koala</strong>.</li>
+                <li>Sync Gradle and press <strong>Run ▶</strong> or execute:</li>
+              </ol>
+              <div class="mt-3 p-2.5 rounded-lg bg-slate-900 text-emerald-400 font-mono text-xs overflow-x-auto">
+                ./gradlew assembleDebug
+              </div>
+            </div>
+            <div class="pt-6">
+              <span class="text-xs font-semibold text-slate-500 block text-center">Output: <code>app/build/outputs/apk/debug/app-debug.apk</code></span>
+            </div>
+          </div>
+
+          <!-- Method 3: Direct APK Install -->
+          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xl mb-4">
+                📱
+              </div>
+              <h4 class="text-lg font-bold text-slate-900">3. Install on Android Phone</h4>
+              <p class="text-xs text-slate-500 mt-1 font-medium">For field officers on duty</p>
+              <p class="text-sm text-slate-600 mt-3 leading-relaxed">
+                In Google AI Studio, click the project menu at top right and choose <strong>Download APK</strong>. Transfer the <code>.apk</code> to your Android smartphone or tablet and tap to install.
+              </p>
+              <div class="mt-3 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
+                <p class="font-semibold text-slate-800">Prerequisites:</p>
+                <p>• Android 8.0 (API 26) or higher</p>
+                <p>• Enable "Install Unknown Apps" in Settings</p>
+              </div>
+            </div>
+            <div class="pt-6">
+              <a href="https://ais-dev-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition">
+                <span>Manage in AI Studio</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features Section -->
+    <section id="features" class="py-16 bg-slate-50 border-t border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-3xl mx-auto mb-12">
+          <span class="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-100/60 px-3 py-1 rounded-full">Enterprise Architecture</span>
+          <h3 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-3">Key Capabilities Built-in</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-2xl">⚡</div>
+            <h5 class="font-bold text-slate-900 text-base">Spot & Self Inspections</h5>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              On-demand field inspections with GPS coordinates, accuracy thresholds, and photo evidence validation.
+            </p>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-2xl">📄</div>
+            <h5 class="font-bold text-slate-900 text-base">Word & Excel Dossiers</h5>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Complete official Microsoft Word (.docx) and Excel (.xlsx) dossiers with in-app preview before download.
+            </p>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-2xl">⚠️</div>
+            <h5 class="font-bold text-slate-900 text-base">Compliance Tracking</h5>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Assign action officers, set closure deadlines, log rectified photo proofs, and monitor overdue compliances.
+            </p>
+          </div>
+
+          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-2xl">🔄</div>
+            <h5 class="font-bold text-slate-900 text-base">Dual-Role Switcher</h5>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Seamlessly toggle between Field Officer and Admin/HQ reviewer modes with role-based dashboard metrics.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-400 py-8 text-xs border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-2">
+        <span class="text-base">🚆</span>
+        <span class="font-semibold text-slate-200">Indian Railways Officer Inspection & Compliance Management System</span>
+      </div>
+      <div>
+        <span>Built with Jetpack Compose & Kotlin • Deployed on Vercel</span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
