@@ -1,13 +1,18 @@
 package com.example.ui.admin
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,10 +27,15 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.ComplianceRepository
 import com.example.data.InspectionRepository
 import com.example.data.MasterDataRepository
 import com.example.data.UserRepository
+import com.example.models.Compliance
+import com.example.models.ComplianceSeverity
+import com.example.models.ComplianceStatus
 import com.example.models.Inspection
+import com.example.models.InspectionStatus
 import com.example.models.InspectionType
 import com.example.models.LCGate
 import com.example.models.Role
@@ -73,6 +83,7 @@ class AssignInspectionViewModel : ViewModel() {
     private val repo = InspectionRepository()
     private val userRepo = UserRepository()
     private val masterDataRepo = MasterDataRepository()
+    private val complianceRepo = ComplianceRepository()
 
     private val _inspections = MutableStateFlow<List<Inspection>>(emptyList())
     val inspections: StateFlow<List<Inspection>> = _inspections.asStateFlow()
@@ -91,6 +102,9 @@ class AssignInspectionViewModel : ViewModel() {
 
     private val _lcGates = MutableStateFlow<List<LCGate>>(emptyList())
     val lcGates: StateFlow<List<LCGate>> = _lcGates.asStateFlow()
+
+    private val _compliances = MutableStateFlow<List<Compliance>>(emptyList())
+    val compliances: StateFlow<List<Compliance>> = _compliances.asStateFlow()
 
     init {
         loadData()
@@ -141,6 +155,11 @@ class AssignInspectionViewModel : ViewModel() {
                 } else {
                     _lcGates.value = list
                 }
+            }
+        }
+        viewModelScope.launch {
+            complianceRepo.getAllCompliances().collect { list ->
+                _compliances.value = list
             }
         }
     }
@@ -237,6 +256,7 @@ fun AssignInspectionScreen(
     val stations by viewModel.stations.collectAsState()
     val sections by viewModel.sections.collectAsState()
     val lcGates by viewModel.lcGates.collectAsState()
+    val compliances by viewModel.compliances.collectAsState()
 
     val context = LocalContext.current
     var showAssignDialog by remember { mutableStateOf(false) }
@@ -248,6 +268,7 @@ fun AssignInspectionScreen(
     var showDossierPreview by remember { mutableStateOf(false) }
     var showRegisterPreview by remember { mutableStateOf(false) }
     var previewInspectionsList by remember { mutableStateOf<List<Inspection>>(emptyList()) }
+    var allCompliancesExpanded by remember { mutableStateOf(false) }
 
     val filteredInspections = remember(inspections, filterCriteria) {
         inspections.applyInspectionFilters(filterCriteria)
@@ -326,6 +347,73 @@ fun AssignInspectionScreen(
                 }
             )
 
+            // Dynamic Compliance Summary and Collapse/Expand All toggle (scoped strictly to current inspections)
+            val activeInspectionIds = remember(filteredInspections) { filteredInspections.map { it.id }.toSet() }
+            val activeInspectionNumbers = remember(filteredInspections) { filteredInspections.map { it.inspectionNumber }.filter { it.isNotBlank() }.toSet() }
+            val relevantCompliances = remember(compliances, activeInspectionIds, activeInspectionNumbers) {
+                if (filteredInspections.isEmpty()) {
+                    emptyList()
+                } else {
+                    compliances.filter {
+                        (it.inspectionId.isNotBlank() && it.inspectionId in activeInspectionIds) ||
+                        (it.inspectionNumber.isNotBlank() && it.inspectionNumber in activeInspectionNumbers)
+                    }
+                }
+            }
+            val totalCompliancesCount = relevantCompliances.size
+            val compliancesByInspectionMap = remember(relevantCompliances) {
+                val map = mutableMapOf<String, MutableList<Compliance>>()
+                relevantCompliances.forEach { c ->
+                    if (c.inspectionId.isNotBlank()) map.getOrPut(c.inspectionId) { mutableListOf() }.add(c)
+                    if (c.inspectionNumber.isNotBlank() && c.inspectionNumber != c.inspectionId) {
+                        map.getOrPut(c.inspectionNumber) { mutableListOf() }.add(c)
+                    }
+                }
+                map
+            }
+            if (totalCompliancesCount > 0 && filteredInspections.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val pendingCount = relevantCompliances.count { it.status != ComplianceStatus.RESOLVED && it.status != ComplianceStatus.CLOSED }
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "$totalCompliancesCount Compliances Logged ($pendingCount Pending)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    FilledTonalButton(
+                        onClick = { allCompliancesExpanded = !allCompliancesExpanded },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(
+                            if (allCompliancesExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            if (allCompliancesExpanded) "Collapse All" else "Expand All",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -342,8 +430,17 @@ fun AssignInspectionScreen(
                 }
             } else {
                 items(filteredInspections, key = { it.id }) { insp ->
+                    val related = compliancesByInspectionMap[insp.id]
+                        ?: (if (insp.inspectionNumber.isNotBlank()) compliancesByInspectionMap[insp.inspectionNumber] else null)
+                        ?: emptyList()
                     InspectionCard(
                         inspection = insp,
+                        compliances = related,
+                        forceExpanded = allCompliancesExpanded,
+                        onViewDossier = {
+                            previewInspectionsList = listOf(insp)
+                            showDossierPreview = true
+                        },
                         onEdit = { editingInspection = insp; showAssignDialog = true },
                         onDelete = { inspectionToDelete = insp }
                     )
@@ -372,16 +469,69 @@ fun AssignInspectionScreen(
         }
 
         inspectionToDelete?.let { insp ->
+            val relatedCompliances = compliances.filter {
+                it.inspectionId == insp.id || (it.inspectionNumber.isNotBlank() && it.inspectionNumber == insp.inspectionNumber)
+            }
             AlertDialog(
                 onDismissRequest = { inspectionToDelete = null },
-                title = { Text("Delete Inspection") },
-                text = { Text("Are you sure you want to delete assignment ${insp.inspectionNumber}?") },
+                icon = {
+                    Icon(
+                        Icons.Default.DeleteForever,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                },
+                title = { Text("Delete Inspection & Compliances") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Are you sure you want to delete inspection ${insp.inspectionNumber.ifEmpty { insp.inspectionTypeName }}?",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (relatedCompliances.isNotEmpty()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "${relatedCompliances.size} compliance(s) assigned to officers regarding this inspection will also be permanently deleted from local storage and Cloud Firestore.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "All data regarding this inspection will be permanently removed from device storage and Cloud Firestore.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
                 confirmButton = {
-                    TextButton(onClick = {
-                        viewModel.deleteInspection(insp)
-                        inspectionToDelete = null
-                    }) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Button(
+                        onClick = {
+                            viewModel.deleteInspection(insp)
+                            inspectionToDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete Everything")
                     }
                 },
                 dismissButton = {
@@ -507,25 +657,54 @@ fun AssignInspectionScreen(
 }
 
 @Composable
-fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun InspectionCard(
+    inspection: Inspection,
+    compliances: List<Compliance> = emptyList(),
+    forceExpanded: Boolean = false,
+    onViewDossier: (() -> Unit)? = null,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
     val dateString = if (inspection.scheduledDate > 0) dateFormat.format(Date(inspection.scheduledDate)) else "Not Scheduled"
 
     val isLocationTbd = inspection.locationName.isBlank() || inspection.locationName.equals("TBD", ignoreCase = true)
 
+    val pendingCount = compliances.count { it.status != ComplianceStatus.RESOLVED && it.status != ComplianceStatus.CLOSED }
+    var isCompliancesExpanded by remember { mutableStateOf(forceExpanded) }
+    LaunchedEffect(forceExpanded) {
+        isCompliancesExpanded = forceExpanded
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFF7ED),
+            contentColor = Color(0xFF0F172A)
+        ),
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFFED7AA)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
+        // Top accent line matching app bar color
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .background(Brush.horizontalGradient(listOf(Color(0xFFEA580C), Color(0xFFF97316))))
+        )
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = MaterialTheme.shapes.small,
+                    color = Color(0xFFFFF7ED),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, Color(0xFFFFEDD5)),
                     modifier = Modifier.size(44.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -536,7 +715,7 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                                 else -> Icons.Default.Assignment
                             },
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = Color(0xFFEA580C)
                         )
                     }
                 }
@@ -548,12 +727,12 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                         Text(
                             inspection.inspectionNumber.ifEmpty { "INSPECTION" },
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = Color(0xFFEA580C)
                         )
                         if (inspection.isSpotInspection) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
-                                color = if (inspection.inspectionCategory == "SELF") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+                                color = if (inspection.inspectionCategory == "SELF") Color(0xFFFEF3C7) else Color(0xFFDCFCE7),
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Row(
@@ -564,14 +743,14 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                                         imageVector = if (inspection.inspectionCategory == "SELF") Icons.Default.AssignmentInd else Icons.Default.FlashOn,
                                         contentDescription = null,
                                         modifier = Modifier.size(11.dp),
-                                        tint = if (inspection.inspectionCategory == "SELF") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onTertiaryContainer
+                                        tint = if (inspection.inspectionCategory == "SELF") Color(0xFFB45309) else Color(0xFF15803D)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
                                         text = if (inspection.inspectionCategory == "SELF") "SELF" else "SPOT",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (inspection.inspectionCategory == "SELF") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onTertiaryContainer
+                                        color = if (inspection.inspectionCategory == "SELF") Color(0xFFB45309) else Color(0xFF15803D)
                                     )
                                 }
                             }
@@ -580,19 +759,28 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                     Text(
                         inspection.inspectionTypeName.ifEmpty { "General Inspection" },
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
                     )
                 }
 
+                val (statusBg, statusBorder, statusFg) = when (inspection.status) {
+                    InspectionStatus.COMPLETED -> Triple(Color(0xFFDCFCE7), Color(0xFF86EFAC), Color(0xFF166534))
+                    InspectionStatus.IN_PROGRESS -> Triple(Color(0xFFFEF3C7), Color(0xFFFDE68A), Color(0xFF92400E))
+                    InspectionStatus.ASSIGNED, InspectionStatus.ACCEPTED, InspectionStatus.RESCHEDULED -> Triple(Color(0xFFE0F2FE), Color(0xFFBAE6FD), Color(0xFF0369A1))
+                    InspectionStatus.DATE_CHANGE_REQUESTED, InspectionStatus.CANCELLED -> Triple(Color(0xFFFEE2E2), Color(0xFFFECACA), Color(0xFF991B1B))
+                }
                 Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = MaterialTheme.shapes.small
+                    color = statusBg,
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, statusBorder)
                 ) {
                     Text(
                         text = inspection.status.name.replace("_", " "),
                         style = MaterialTheme.typography.labelSmall,
+                        color = statusFg,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -607,7 +795,7 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                 Icon(
                     Icons.Default.LocationOn,
                     contentDescription = null,
-                    tint = if (isLocationTbd) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    tint = if (isLocationTbd) Color(0xFFDC2626) else Color(0xFFEA580C),
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -615,7 +803,7 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                     text = "Location: ${if (isLocationTbd) "TBD (Click Edit to assign location)" else inspection.locationName}",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = if (isLocationTbd) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                    color = if (isLocationTbd) Color(0xFFDC2626) else Color(0xFF0F172A)
                 )
             }
 
@@ -628,31 +816,220 @@ fun InspectionCard(inspection: Inspection, onEdit: () -> Unit, onDelete: () -> U
                 Text(
                     "Officer: ${inspection.assignedOfficerName.ifEmpty { "Unassigned" }}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF475569)
                 )
                 Text(
                     "Scheduled: $dateString",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF475569)
                 )
             }
 
+            val execDate = inspection.executionDate
+            if (execDate != null && execDate > 0) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Executed: ${dateFormat.format(Date(execDate))}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFEA580C)
+                    )
+                }
+            }
+
+            // Compliance status indicator tag on inspection card
+            if (compliances.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = if (pendingCount > 0) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
+                    else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isCompliancesExpanded = !isCompliancesExpanded }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(
+                                if (pendingCount > 0) Icons.Default.PendingActions else Icons.Default.AssignmentTurnedIn,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (pendingCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (pendingCount > 0)
+                                    "${compliances.size} Compliances raised ($pendingCount pending)"
+                                else
+                                    "${compliances.size} Compliances raised (All Resolved)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (pendingCount > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isCompliancesExpanded) "Hide" else "View Details",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (pendingCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            )
+                            Icon(
+                                if (isCompliancesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (pendingCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                // Expandable point-level compliance items under the inspection card
+                AnimatedVisibility(
+                    visible = isCompliancesExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        compliances.forEach { comp ->
+                            Surface(
+                                color = Color(0xFFF8FAFC),
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(0.5.dp, Color(0xFFCBD5E1)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = comp.title,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Surface(
+                                            color = when (comp.status) {
+                                                ComplianceStatus.RESOLVED, ComplianceStatus.CLOSED -> Color(0xFF2E7D32).copy(alpha = 0.15f)
+                                                ComplianceStatus.UNDER_ACTION -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                                                else -> Color(0xFFB71C1C).copy(alpha = 0.15f)
+                                            },
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = comp.status.name.replace("_", " "),
+                                                color = when (comp.status) {
+                                                    ComplianceStatus.RESOLVED, ComplianceStatus.CLOSED -> Color(0xFF2E7D32)
+                                                    ComplianceStatus.UNDER_ACTION -> MaterialTheme.colorScheme.tertiary
+                                                    else -> Color(0xFFB71C1C)
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (comp.inspectionPointTitle.isNotBlank() && comp.inspectionPointTitle != comp.title) {
+                                        Text(
+                                            text = "Point: ${comp.inspectionPointTitle}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    if (comp.description.isNotBlank()) {
+                                        Text(
+                                            text = comp.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Assigned: ${comp.assignedOfficerName.ifBlank { "Unassigned" }}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (comp.targetDate > 0) {
+                                            Text(
+                                                text = "Target: ${dateFormat.format(Date(comp.targetDate))}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (comp.targetDate < System.currentTimeMillis() && comp.status != ComplianceStatus.RESOLVED && comp.status != ComplianceStatus.CLOSED)
+                                                    MaterialTheme.colorScheme.error
+                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = Color(0xFFE2E8F0))
             Spacer(modifier = Modifier.height(4.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isLocationTbd) "Assign Location" else "Edit")
+                if (onViewDossier != null) {
+                    TextButton(
+                        onClick = onViewDossier,
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEA580C))
+                    ) {
+                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Dossier", fontWeight = FontWeight.SemiBold)
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = onEdit,
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEA580C))
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (isLocationTbd) "Assign Location" else "Edit", fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFDC2626))
+                    }
                 }
             }
         }
@@ -703,12 +1080,17 @@ fun AssignInspectionDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Box(modifier = Modifier.fillMaxSize().imePadding(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Card(
                 modifier = Modifier.fillMaxWidth(0.95f).heightIn(max = 750.dp).padding(16.dp),
-                shape = MaterialTheme.shapes.large
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF0F172A)
+                ),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
@@ -717,12 +1099,18 @@ fun AssignInspectionDialog(
                     Text(
                         if (inspection == null) "Assign Inspection" else "Edit Inspection Assignment",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
                     )
 
                     // Inspection Category / Mode Selection
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Inspection Option / Mode *", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Inspection Option / Mode *",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0F172A)
+                        )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = inspectionCategory == "ASSIGNED",
@@ -1428,14 +1816,20 @@ fun AddNewMasterLocationDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Category switch chips
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     FilterChip(
                         selected = category == LocationCategory.STATION,
                         onClick = {
                             category = LocationCategory.STATION
                             if (stationName.isBlank() && initialName.isNotBlank()) stationName = initialName
                         },
-                        label = { Text("Station") }
+                        label = { Text("Station", maxLines = 1, softWrap = false) }
                     )
                     FilterChip(
                         selected = category == LocationCategory.SECTION,
@@ -1443,7 +1837,7 @@ fun AddNewMasterLocationDialog(
                             category = LocationCategory.SECTION
                             if (sectionName.isBlank() && initialName.isNotBlank()) sectionName = initialName
                         },
-                        label = { Text("Section (Footplate)") }
+                        label = { Text("Section (Footplate)", maxLines = 1, softWrap = false) }
                     )
                     FilterChip(
                         selected = category == LocationCategory.LC_GATE,
@@ -1451,7 +1845,7 @@ fun AddNewMasterLocationDialog(
                             category = LocationCategory.LC_GATE
                             if (lcNumber.isBlank() && initialName.isNotBlank()) lcNumber = initialName
                         },
-                        label = { Text("LC Gate") }
+                        label = { Text("LC Gate", maxLines = 1, softWrap = false) }
                     )
                 }
 

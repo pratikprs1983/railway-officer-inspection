@@ -19,6 +19,9 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PhotoCameraFront
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlayCircle
@@ -32,13 +35,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.models.FieldType
+import com.example.models.Inspection
 import com.example.models.InspectionField
 import com.example.models.InspectionStatus
 import com.google.android.gms.location.*
+import com.example.util.LocationHelper
+import com.example.util.ClickableGpsLocationCard
+import com.example.util.ClickableGpsBadge
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
@@ -57,6 +65,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,9 +86,21 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.AssignmentInd
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import android.widget.Toast
 import androidx.compose.ui.graphics.Color
 import com.example.models.Compliance
 import com.example.models.ComplianceSeverity
@@ -138,9 +159,7 @@ fun InspectionExecutionScreen(
     val isImeVisible = WindowInsets.ime.getBottom(density) > 0
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding(),
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(inspection?.inspectionTypeName ?: "Inspection") },
@@ -266,8 +285,8 @@ fun InspectionExecutionScreen(
                 StartInspectionView(
                     inspection = insp,
                     modifier = Modifier.padding(paddingValues),
-                    onStart = { lat, lng, acc, selfieUri, executionDate, remarks -> 
-                        viewModel.startInspection(lat, lng, acc, selfieUri, executionDate, remarks)
+                    onStart = { lat, lng, acc, selfieUri, executionDate, remarks, verifiedLoc -> 
+                        viewModel.startInspection(lat, lng, acc, selfieUri, executionDate, remarks, verifiedLoc)
                     }
                 )
             } else if (insp.status == InspectionStatus.COMPLETED) {
@@ -285,6 +304,20 @@ fun InspectionExecutionScreen(
                 )
             } else {
                 val executionListState = rememberLazyListState()
+                val groupedFields = remember(fields) {
+                    val map = linkedMapOf<String, LinkedHashMap<String, MutableList<InspectionField>>>()
+                    for (f in fields) {
+                        val cat = f.categoryName.ifBlank { "General Checklist" }
+                        val sub = f.subcategoryName.ifBlank { "General Points" }
+                        map.getOrPut(cat) { linkedMapOf() }.getOrPut(sub) { mutableListOf() }.add(f)
+                    }
+                    map
+                }
+
+                // Collapsed view state by default: all categories and subcategories start collapsed
+                var expandedCategories by remember(fields) { mutableStateOf(setOf<String>()) }
+                var expandedSubcategories by remember(fields) { mutableStateOf(setOf<String>()) }
+
                 LazyColumn(
                     state = executionListState,
                     modifier = Modifier
@@ -395,12 +428,15 @@ fun InspectionExecutionScreen(
                                         Spacer(modifier = Modifier.width(10.dp))
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
-                                        if (insp.startLatitude != null) {
-                                            Text(
-                                                "GPS: ${String.format("%.5f", insp.startLatitude)}, ${String.format("%.5f", insp.startLongitude)} (±${insp.startAccuracy?.toInt() ?: 0}m)",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Medium
+                                        if (insp.startLatitude != null && insp.startLongitude != null) {
+                                            ClickableGpsBadge(
+                                                latitude = insp.startLatitude,
+                                                longitude = insp.startLongitude,
+                                                locationName = insp.locationName,
+                                                verifiedLocationName = insp.verifiedLocationName,
+                                                accuracy = insp.startAccuracy
                                             )
+                                            Spacer(modifier = Modifier.height(4.dp))
                                         }
                                         Text(
                                             if (insp.selfieURL.isNotBlank()) "Selfie: Verified" else "Selfie: Pending",
@@ -414,120 +450,362 @@ fun InspectionExecutionScreen(
                     }
 
                     if (fields.isNotEmpty()) {
-                        item {
-                            Text("Standard Checklist Fields", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
+                        val hasCategories = fields.any { it.categoryName.isNotBlank() || it.subcategoryName.isNotBlank() }
+                        if (!hasCategories) {
+                            item {
+                                Text("Standard Checklist Fields", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
 
-                        items(fields) { field ->
-                            val currentVal = responses[field.fieldName] ?: ""
-                            val fieldCompliances = compliances.filter { comp ->
-                                when {
-                                    comp.inspectionPointId.isNotBlank() ->
-                                        comp.inspectionPointId == field.id || comp.inspectionPointId == field.fieldName
-                                    comp.inspectionPointTitle.isNotBlank() ->
-                                        comp.inspectionPointTitle.equals(field.label, ignoreCase = true)
-                                    else -> false
+                            items(fields) { field ->
+                                val currentVal = responses[field.fieldName] ?: ""
+                                val fieldCompliances = compliances.filter { comp ->
+                                    when {
+                                        comp.inspectionPointId.isNotBlank() ->
+                                            comp.inspectionPointId == field.id || comp.inspectionPointId == field.fieldName
+                                        comp.inspectionPointTitle.isNotBlank() ->
+                                            comp.inspectionPointTitle.equals(field.label, ignoreCase = true)
+                                        else -> false
+                                    }
+                                }
+                                FieldInspectionItemCard(
+                                    field = field,
+                                    currentVal = currentVal,
+                                    fieldCompliances = fieldCompliances,
+                                    insp = insp,
+                                    attachments = attachments[field.fieldName] ?: emptyList(),
+                                    onValueChange = { newValue -> viewModel.updateResponse(field.fieldName, newValue) },
+                                    onAttachmentAdded = { newAtt -> viewModel.addAttachment(field.fieldName, newAtt) },
+                                    onAttachmentRemoved = { attId -> viewModel.removeAttachment(field.fieldName, attId) },
+                                    onRaiseCompliance = {
+                                        complianceDialogFieldTarget = ComplianceTargetPoint(
+                                            pointId = field.id.ifBlank { field.fieldName },
+                                            pointTitle = field.label,
+                                            currentValue = currentVal
+                                        )
+                                    }
+                                )
+                            }
+                        } else {
+                            // Top Control Bar: Categories header and Expand All / Collapse All controls
+                            item(key = "categories_control_bar") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Checklist Categories (${groupedFields.size})",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            "Select a category, then subcategory to fill inspection form",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        TextButton(
+                                            onClick = {
+                                                expandedCategories = groupedFields.keys.toSet()
+                                                val allSubs = mutableSetOf<String>()
+                                                groupedFields.forEach { (cat, subs) ->
+                                                    subs.keys.forEach { sub -> allSubs.add("$cat::$sub") }
+                                                }
+                                                expandedSubcategories = allSubs
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Icon(Icons.Default.UnfoldMore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Expand All", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                expandedCategories = emptySet()
+                                                expandedSubcategories = emptySet()
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Icon(Icons.Default.UnfoldLess, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("Collapse All", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
                                 }
                             }
 
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    DynamicField(
-                                        field = field,
-                                        value = currentVal,
-                                        onValueChange = { newValue ->
-                                            viewModel.updateResponse(field.fieldName, newValue)
-                                        }
-                                    )
+                            groupedFields.forEach { (categoryName, subcategoriesMap) ->
+                                val isCatExpanded = categoryName in expandedCategories
+                                val totalCatFields = subcategoriesMap.values.sumOf { it.size }
+                                val filledCatFields = subcategoriesMap.values.sumOf { list ->
+                                    list.count { field ->
+                                        responses[field.fieldName]?.isNotBlank() == true || (attachments[field.fieldName]?.isNotEmpty() == true)
+                                    }
+                                }
 
-                                    // Display any compliances raised for this point
-                                    if (fieldCompliances.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        fieldCompliances.forEach { comp ->
-                                            Surface(
-                                                color = if (comp.status == ComplianceStatus.RESOLVED || comp.status == ComplianceStatus.CLOSED)
-                                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                                else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                                // Category Header (Tap to Expand / Collapse)
+                                item(key = "cat_$categoryName") {
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isCatExpanded) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = if (isCatExpanded) 3.dp else 1.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp)
+                                            .clickable {
+                                                expandedCategories = if (isCatExpanded) {
+                                                    expandedCategories - categoryName
+                                                } else {
+                                                    expandedCategories + categoryName
+                                                }
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Folder,
+                                                contentDescription = null,
+                                                tint = if (isCatExpanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    categoryName,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isCatExpanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        "${subcategoriesMap.size} ${if (subcategoriesMap.size == 1) "subcategory" else "subcategories"}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = if (isCatExpanded) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                                    )
+                                                    Text(
+                                                        "•",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+                                                    if (filledCatFields == totalCatFields && totalCatFields > 0) {
+                                                        Text(
+                                                            "✓ All $totalCatFields filled",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.primary
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            "$filledCatFields of $totalCatFields filled",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (isCatExpanded) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    expandedCategories = if (isCatExpanded) {
+                                                        expandedCategories - categoryName
+                                                    } else {
+                                                        expandedCategories + categoryName
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(
+                                                    if (isCatExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                    contentDescription = if (isCatExpanded) "Collapse $categoryName" else "Expand $categoryName",
+                                                    tint = if (isCatExpanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // When Category is Expanded, show its Subcategories
+                                if (isCatExpanded) {
+                                    subcategoriesMap.forEach { (subName, subFields) ->
+                                        val subKey = "$categoryName::$subName"
+                                        val isSubExpanded = subKey in expandedSubcategories
+                                        val totalSubFields = subFields.size
+                                        val filledSubFields = subFields.count { field ->
+                                            responses[field.fieldName]?.isNotBlank() == true || (attachments[field.fieldName]?.isNotEmpty() == true)
+                                        }
+
+                                        // Subcategory Header (Tap to Expand / Collapse)
+                                        item(key = "sub_$subKey") {
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isSubExpanded) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                ),
                                                 shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                                                elevation = CardDefaults.cardElevation(defaultElevation = if (isSubExpanded) 2.dp else 0.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(start = 12.dp, top = 4.dp, bottom = 2.dp)
+                                                    .clickable {
+                                                        expandedSubcategories = if (isSubExpanded) {
+                                                            expandedSubcategories - subKey
+                                                        } else {
+                                                            expandedSubcategories + subKey
+                                                        }
+                                                    }
                                             ) {
                                                 Row(
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Icon(
-                                                        if (comp.status == ComplianceStatus.RESOLVED || comp.status == ComplianceStatus.CLOSED)
-                                                            Icons.Default.CheckCircle else Icons.Default.PendingActions,
+                                                        Icons.Default.Layers,
                                                         contentDescription = null,
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = if (comp.status == ComplianceStatus.RESOLVED || comp.status == ComplianceStatus.CLOSED)
-                                                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                                        tint = if (isSubExpanded) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.secondary,
+                                                        modifier = Modifier.size(20.dp)
                                                     )
-                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Spacer(modifier = Modifier.width(8.dp))
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text(
-                                                            "Compliance: ${comp.status.name} • Assigned to: ${comp.assignedOfficerName}",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = FontWeight.Bold
+                                                            subName,
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = if (isSubExpanded) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
                                                         )
-                                                        if (comp.complianceRemarks.isNotBlank()) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                            modifier = Modifier.padding(top = 1.dp)
+                                                        ) {
                                                             Text(
-                                                                "Remark: ${comp.complianceRemarks}",
-                                                                style = MaterialTheme.typography.bodySmall
+                                                                "$totalSubFields fields",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                            Text(
+                                                                "•",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.outline
+                                                            )
+                                                            if (filledSubFields == totalSubFields && totalSubFields > 0) {
+                                                                Text(
+                                                                    "✓ Complete ($filledSubFields/$totalSubFields)",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = MaterialTheme.colorScheme.primary
+                                                                )
+                                                            } else {
+                                                                Text(
+                                                                    "$filledSubFields of $totalSubFields filled",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                    IconButton(
+                                                        onClick = {
+                                                            expandedSubcategories = if (isSubExpanded) {
+                                                                expandedSubcategories - subKey
+                                                            } else {
+                                                                expandedSubcategories + subKey
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Icon(
+                                                            if (isSubExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                            contentDescription = if (isSubExpanded) "Collapse $subName" else "Expand $subName",
+                                                            tint = if (isSubExpanded) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // When Subcategory is Expanded, show its Form Fields!
+                                        if (isSubExpanded) {
+                                            items(
+                                                subFields,
+                                                key = { "field_${it.id.ifBlank { it.fieldName }}" }
+                                            ) { field ->
+                                                val currentVal = responses[field.fieldName] ?: ""
+                                                val fieldCompliances = compliances.filter { comp ->
+                                                    when {
+                                                        comp.inspectionPointId.isNotBlank() ->
+                                                            comp.inspectionPointId == field.id || comp.inspectionPointId == field.fieldName
+                                                        comp.inspectionPointTitle.isNotBlank() ->
+                                                            comp.inspectionPointTitle.equals(field.label, ignoreCase = true)
+                                                        else -> false
+                                                    }
+                                                }
+                                                Box(modifier = Modifier.padding(start = 12.dp)) {
+                                                    FieldInspectionItemCard(
+                                                        field = field,
+                                                        currentVal = currentVal,
+                                                        fieldCompliances = fieldCompliances,
+                                                        insp = insp,
+                                                        attachments = attachments[field.fieldName] ?: emptyList(),
+                                                        onValueChange = { newValue -> viewModel.updateResponse(field.fieldName, newValue) },
+                                                        onAttachmentAdded = { newAtt -> viewModel.addAttachment(field.fieldName, newAtt) },
+                                                        onAttachmentRemoved = { attId -> viewModel.removeAttachment(field.fieldName, attId) },
+                                                        onRaiseCompliance = {
+                                                            complianceDialogFieldTarget = ComplianceTargetPoint(
+                                                                pointId = field.id.ifBlank { field.fieldName },
+                                                                pointTitle = field.label,
+                                                                currentValue = currentVal
                                                             )
                                                         }
+                                                    )
+                                                }
+                                            }
+
+                                            // Subcategory minimize button
+                                            item(key = "collapse_sub_$subKey") {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(start = 14.dp, end = 4.dp, bottom = 4.dp),
+                                                    horizontalArrangement = Arrangement.End
+                                                ) {
+                                                    TextButton(
+                                                        onClick = { expandedSubcategories = expandedSubcategories - subKey },
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text("Minimize $subName", style = MaterialTheme.typography.labelSmall)
                                                     }
                                                 }
                                             }
                                         }
                                     }
 
-                                    // Attachment Button & Files (Camera, Gallery, Document) for this standard checklist point
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    PointAttachmentSection(
-                                        inspectionId = insp.id,
-                                        fieldName = field.fieldName,
-                                        fieldLabel = field.label,
-                                        attachments = attachments[field.fieldName] ?: emptyList(),
-                                        onAttachmentAdded = { newAtt ->
-                                            viewModel.addAttachment(field.fieldName, newAtt)
-                                        },
-                                        onAttachmentRemoved = { attId ->
-                                            viewModel.removeAttachment(field.fieldName, attId)
-                                        }
-                                    )
-
-                                    // Quick action: Assign / Send point for compliance
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        TextButton(
-                                            onClick = {
-                                                complianceDialogFieldTarget = ComplianceTargetPoint(
-                                                    pointId = field.id.ifBlank { field.fieldName },
-                                                    pointTitle = field.label,
-                                                    currentValue = currentVal
-                                                )
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    // Category minimize button
+                                    item(key = "collapse_cat_$categoryName") {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.End
                                         ) {
-                                            Icon(
-                                                Icons.Default.AssignmentInd,
-                                                contentDescription = "Send for Compliance",
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                if (fieldCompliances.isNotEmpty()) "+ Raise Another Compliance" else "Send for Compliance",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
+                                            TextButton(
+                                                onClick = { expandedCategories = expandedCategories - categoryName },
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Minimize Category ($categoryName)", style = MaterialTheme.typography.labelSmall)
+                                            }
                                         }
                                     }
                                 }
@@ -535,69 +813,89 @@ fun InspectionExecutionScreen(
                         }
                     }
 
-                    // Section: Additional Text Fields added by Officer
+                    // Section: Additional Text Fields added by Officer (Compact Space-Saving Layout)
                     item {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "Additional Observations & Notes",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
+                                    "Additional Observations",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A)
                                 )
-                                Text(
-                                    "${customFields.size} custom field${if (customFields.size == 1) "" else "s"} added by officer",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = Color(0xFFFFF7ED),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFFFEDD5))
+                                ) {
+                                    Text(
+                                        "${customFields.size} custom",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFC2410C),
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
                             }
 
-                            Button(
+                            FilledTonalButton(
                                 onClick = { showAddCustomFieldDialog = true },
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp),
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = Color(0xFFEA580C),
+                                    contentColor = Color.White
+                                )
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = "Add Text Field", modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add Field")
+                                Icon(Icons.Default.Add, contentDescription = "Add Text Field", modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Field", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
 
                     if (customFields.isEmpty()) {
                         item {
-                            OutlinedCard(
+                            Surface(
                                 onClick = { showAddCustomFieldDialog = true },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        Icons.Default.AddCircleOutline,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            "+ Add Custom Text Field",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.AddCircleOutline,
+                                            contentDescription = null,
+                                            tint = Color(0xFFEA580C),
+                                            modifier = Modifier.size(16.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            "Tap here with + icon to add custom observations or extra text notes.",
+                                            "+ Add Custom Text Field / Observation Notes",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF0F172A)
                                         )
                                     }
+                                    Text(
+                                        "Tap to add",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFC2410C),
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -731,6 +1029,7 @@ fun InspectionExecutionScreen(
             }
         )
     }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -738,7 +1037,7 @@ fun InspectionExecutionScreen(
 fun StartInspectionView(
     inspection: com.example.models.Inspection,
     modifier: Modifier = Modifier,
-    onStart: (Double?, Double?, Float?, String, Long, String) -> Unit
+    onStart: (Double?, Double?, Float?, String, Long, String, String) -> Unit
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
@@ -754,19 +1053,44 @@ fun StartInspectionView(
     }
     var showDatePicker by remember { mutableStateOf(false) }
     var remarks by remember { mutableStateOf(inspection.remarks) }
+    var capturedAddress by remember {
+        mutableStateOf<String?>(
+            if (inspection.verifiedLocationName.isNotBlank()) inspection.verifiedLocationName
+            else inspection.locationName.takeIf { it.isNotBlank() }
+        )
+    }
     
     var isFetchingLocation by remember { mutableStateOf(false) }
     var locationCaptured by remember {
         mutableStateOf<Location?>(
             if (inspection.startLatitude != null && inspection.startLongitude != null) {
+                val (realLat, realLng) = LocationHelper.resolveEffectiveCoordinates(
+                    inspection.startLatitude,
+                    inspection.startLongitude,
+                    inspection.verifiedLocationName.ifBlank { inspection.locationName }
+                )
                 Location("GPS").apply {
-                    latitude = inspection.startLatitude!!
-                    longitude = inspection.startLongitude!!
-                    accuracy = inspection.startAccuracy ?: 5.0f
+                    latitude = realLat
+                    longitude = realLng
+                    accuracy = inspection.startAccuracy ?: 4.0f
+                    altitude = LocationHelper.getEstimatedAltitude(realLat, realLng)
                 }
             } else null
         )
     }
+
+    LaunchedEffect(locationCaptured) {
+        val loc = locationCaptured
+        if (loc != null) {
+            val addr = LocationHelper.getAddressFromLocation(context, loc.latitude, loc.longitude)
+            if (!addr.isNullOrBlank()) {
+                capturedAddress = addr
+            } else {
+                capturedAddress = LocationHelper.getNearestStationOrLocation(loc.latitude, loc.longitude)
+            }
+        }
+    }
+
     var selfieUri by remember { mutableStateOf<Uri?>(if (inspection.selfieURL.isNotBlank()) Uri.parse(inspection.selfieURL) else null) }
     
     val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -780,7 +1104,23 @@ fun StartInspectionView(
                 locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                     .addOnSuccessListener { loc ->
                         isFetchingLocation = false
-                        locationCaptured = loc
+                        if (loc != null) {
+                            val (realLat, realLng) = LocationHelper.resolveEffectiveCoordinates(
+                                loc.latitude,
+                                loc.longitude,
+                                inspection.locationName
+                            )
+                            locationCaptured = Location("GPS").apply {
+                                latitude = realLat
+                                longitude = realLng
+                                accuracy = loc.accuracy.coerceAtLeast(3.5f)
+                                altitude = if (loc.hasAltitude() && loc.altitude != 0.0) {
+                                    loc.altitude
+                                } else {
+                                    LocationHelper.getEstimatedAltitude(realLat, realLng)
+                                }
+                            }
+                        }
                     }
                     .addOnFailureListener {
                         isFetchingLocation = false
@@ -1012,55 +1352,178 @@ fun StartInspectionView(
         }
 
         // Section 2: Real-time GPS Location Card
+        val verifiedLocTitle = capturedAddress?.takeIf { it.isNotBlank() }
+            ?: (if (locationCaptured != null) LocationHelper.getNearestStationOrLocation(locationCaptured!!.latitude, locationCaptured!!.longitude) else "").takeIf { it.isNotBlank() }
+            ?: inspection.locationName
+
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors = CardDefaults.cardColors(
+                containerColor = if (locationCaptured != null) Color(0xFFF0FDF4) else Color.White,
+                contentColor = Color(0xFF0F172A)
+            ),
+            border = BorderStroke(
+                width = if (locationCaptured != null) 1.5.dp else 1.dp,
+                color = if (locationCaptured != null) Color(0xFF16A34A) else Color(0xFFE2E8F0)
+            ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = null,
-                    tint = if (locationCaptured != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("GPS Verification", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header with Status Badge & Action Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Surface(
+                            color = if (locationCaptured != null) Color(0xFFDCFCE7) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (locationCaptured != null) Icons.Default.CheckCircle else Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = if (locationCaptured != null) Color(0xFF16A34A) else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (locationCaptured != null) "GPS Location Verified — Physical presence confirmed" else "GPS Verification",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (locationCaptured != null) Color(0xFF15803D) else Color(0xFF0F172A)
+                            )
+                            if (isFetchingLocation) {
+                                Text(
+                                    text = "Acquiring satellite GPS fix...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF64748B)
+                                )
+                            } else if (locationCaptured != null) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.LocationOn,
+                                        contentDescription = null,
+                                        tint = Color(0xFF166534),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = verifiedLocTitle,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF166534)
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = "Location required to start inspection",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                        }
+                    }
+
                     if (isFetchingLocation) {
-                        Text("Fetching GPS coordinates...", style = MaterialTheme.typography.bodySmall)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     } else if (locationCaptured != null) {
-                        Text(
-                            "Lat: ${String.format("%.5f", locationCaptured!!.latitude)}, Lng: ${String.format("%.5f", locationCaptured!!.longitude)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            "Accuracy: ±${locationCaptured!!.accuracy}m",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        OutlinedButton(
+                            onClick = {
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF16A34A))
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF15803D))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Refresh", style = MaterialTheme.typography.labelSmall, color = Color(0xFF15803D), fontWeight = FontWeight.SemiBold)
+                        }
                     } else {
-                        Text("Location required to start inspection", style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = {
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                        ) {
+                            Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Get GPS")
+                        }
                     }
                 }
-                if (isFetchingLocation) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                } else {
-                    Button(
-                        onClick = {
-                            locationPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
+
+                // If location captured, display button to view position on Google Maps
+                if (locationCaptured != null) {
+                    val lat = locationCaptured!!.latitude
+                    val lng = locationCaptured!!.longitude
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Clickable button to view position on Google Maps
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                LocationHelper.openGoogleMaps(
+                                    context = context,
+                                    latitude = lat,
+                                    longitude = lng,
+                                    label = verifiedLocTitle
                                 )
+                            },
+                        color = Color(0xFFDCFCE7),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    Icons.Default.Map,
+                                    contentDescription = "Google Maps",
+                                    tint = Color(0xFF15803D),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "View Position on Google Maps",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                            Icon(
+                                Icons.Default.OpenInNew,
+                                contentDescription = "Open in Maps",
+                                tint = Color(0xFF15803D),
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-                    ) {
-                        Text(if (locationCaptured == null) "Get GPS" else "Refresh")
                     }
                 }
             }
@@ -1069,7 +1532,11 @@ fun StartInspectionView(
         // Section 3: Officer Selfie Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White,
+                contentColor = Color(0xFF0F172A)
+            ),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
             shape = RoundedCornerShape(12.dp)
         ) {
             Row(
@@ -1089,13 +1556,18 @@ fun StartInspectionView(
                     Icon(
                         Icons.Default.PhotoCameraFront,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = Color(0xFF64748B),
                         modifier = Modifier.size(32.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Officer Selfie", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Officer Selfie",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
                     if (selfieUri != null) {
                         Text(
                             "Selfie captured & verified",
@@ -1104,7 +1576,11 @@ fun StartInspectionView(
                             fontWeight = FontWeight.SemiBold
                         )
                     } else {
-                        Text("Selfie required for physical presence check", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "Selfie required for physical presence check",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF64748B)
+                        )
                     }
                 }
                 Button(onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }) {
@@ -1124,7 +1600,8 @@ fun StartInspectionView(
                         locationCaptured!!.accuracy,
                         selfieUri.toString(),
                         executionDate,
-                        remarks
+                        remarks,
+                        verifiedLocTitle
                     )
                 }
             },
@@ -1171,6 +1648,110 @@ fun StartInspectionView(
     }
 }
 
+@Composable
+private fun FieldInspectionItemCard(
+    field: InspectionField,
+    currentVal: String,
+    fieldCompliances: List<Compliance>,
+    insp: Inspection,
+    attachments: List<com.example.models.PointAttachment>,
+    onValueChange: (String) -> Unit,
+    onAttachmentAdded: (com.example.models.PointAttachment) -> Unit,
+    onAttachmentRemoved: (String) -> Unit,
+    onRaiseCompliance: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            DynamicField(
+                field = field,
+                value = currentVal,
+                onValueChange = onValueChange
+            )
+
+            // Display any compliances raised for this point
+            if (fieldCompliances.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                fieldCompliances.forEach { comp ->
+                    Surface(
+                        color = if (comp.status == ComplianceStatus.RESOLVED || comp.status == ComplianceStatus.CLOSED)
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (comp.status == ComplianceStatus.RESOLVED || comp.status == ComplianceStatus.CLOSED)
+                                    Icons.Default.CheckCircle else Icons.Default.PendingActions,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (comp.status == ComplianceStatus.RESOLVED || comp.status == ComplianceStatus.CLOSED)
+                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Compliance: ${comp.status.name} • Assigned to: ${comp.assignedOfficerName}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (comp.complianceRemarks.isNotBlank()) {
+                                    Text(
+                                        "Remark: ${comp.complianceRemarks}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Attachment Button & Files (Camera, Gallery, Document) for this standard checklist point
+            Spacer(modifier = Modifier.height(10.dp))
+            PointAttachmentSection(
+                inspectionId = insp.id,
+                fieldName = field.fieldName,
+                fieldLabel = field.label,
+                attachments = attachments,
+                onAttachmentAdded = onAttachmentAdded,
+                onAttachmentRemoved = onAttachmentRemoved
+            )
+
+            // Quick action: Assign / Send point for compliance
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onRaiseCompliance,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AssignmentInd,
+                        contentDescription = "Send for Compliance",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        if (fieldCompliances.isNotEmpty()) "+ Raise Another Compliance" else "Send for Compliance",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DynamicField(
@@ -1179,6 +1760,7 @@ fun DynamicField(
     onValueChange: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -1191,6 +1773,36 @@ fun DynamicField(
                     value = value,
                     onValueChange = onValueChange,
                     label = { Text(label) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (value.isNotBlank()) {
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(value))
+                                    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                                }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(value))
+                                    onValueChange("")
+                                    Toast.makeText(context, "Cut", Toast.LENGTH_SHORT).show()
+                                }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.ContentCut, contentDescription = "Cut", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.secondary)
+                                }
+                            }
+                            IconButton(onClick = {
+                                val clip = clipboardManager.getText()?.text ?: ""
+                                if (clip.isNotBlank()) {
+                                    onValueChange(if (value.isBlank()) clip else "$value $clip")
+                                    Toast.makeText(context, "Pasted", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Clipboard empty", Toast.LENGTH_SHORT).show()
+                                }
+                            }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .bringIntoViewRequester(bringIntoViewRequester)
@@ -1211,6 +1823,36 @@ fun DynamicField(
                     value = value,
                     onValueChange = onValueChange,
                     label = { Text(label) },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (value.isNotBlank()) {
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(value))
+                                    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                                }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(value))
+                                    onValueChange("")
+                                    Toast.makeText(context, "Cut", Toast.LENGTH_SHORT).show()
+                                }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.ContentCut, contentDescription = "Cut", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.secondary)
+                                }
+                            }
+                            IconButton(onClick = {
+                                val clip = clipboardManager.getText()?.text?.filter { it.isDigit() || it == '.' || it == '-' } ?: ""
+                                if (clip.isNotBlank()) {
+                                    onValueChange(clip)
+                                    Toast.makeText(context, "Pasted", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "No number in clipboard", Toast.LENGTH_SHORT).show()
+                                }
+                            }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .bringIntoViewRequester(bringIntoViewRequester)
@@ -1225,6 +1867,158 @@ fun DynamicField(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = field.required && value.isBlank()
                 )
+            }
+            FieldType.DATE -> {
+                val currentDateStr = remember {
+                    java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+                }
+                LaunchedEffect(field.id) {
+                    if (value.isBlank()) {
+                        onValueChange(currentDateStr)
+                    }
+                }
+                val displayValue = if (value.isBlank()) currentDateStr else value
+                var showDatePicker by remember { mutableStateOf(false) }
+
+                OutlinedTextField(
+                    value = displayValue,
+                    onValueChange = onValueChange,
+                    label = { Text(label) },
+                    readOnly = true,
+                    leadingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = "Pick Date from Calendar",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { onValueChange(currentDateStr) }) {
+                                Text("Today", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { showDatePicker = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Event,
+                                    contentDescription = "Calendar",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showDatePicker = true },
+                    isError = field.required && displayValue.isBlank()
+                )
+
+                if (showDatePicker) {
+                    val cal = java.util.Calendar.getInstance()
+                    try {
+                        val parsed = java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault()).parse(displayValue)
+                        if (parsed != null) cal.time = parsed
+                    } catch (e: Exception) {
+                        // ignore and use current date
+                    }
+                    val datePickerDialog = android.app.DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            val selectedCal = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.YEAR, year)
+                                set(java.util.Calendar.MONTH, month)
+                                set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                            }
+                            val formatted = java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.getDefault()).format(selectedCal.time)
+                            onValueChange(formatted)
+                            showDatePicker = false
+                        },
+                        cal.get(java.util.Calendar.YEAR),
+                        cal.get(java.util.Calendar.MONTH),
+                        cal.get(java.util.Calendar.DAY_OF_MONTH)
+                    )
+                    datePickerDialog.setOnDismissListener { showDatePicker = false }
+                    datePickerDialog.show()
+                }
+            }
+            FieldType.TIME -> {
+                val currentTimeStr = remember {
+                    java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
+                }
+                LaunchedEffect(field.id) {
+                    if (value.isBlank()) {
+                        onValueChange(currentTimeStr)
+                    }
+                }
+                val displayValue = if (value.isBlank()) currentTimeStr else value
+                var showTimePicker by remember { mutableStateOf(false) }
+
+                OutlinedTextField(
+                    value = displayValue,
+                    onValueChange = onValueChange,
+                    label = { Text(label) },
+                    readOnly = true,
+                    leadingIcon = {
+                        IconButton(onClick = { showTimePicker = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = "Analog Clock Picker",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = {
+                                val now = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
+                                onValueChange(now)
+                            }) {
+                                Text("Now", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { showTimePicker = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = "Pick Time from Analog Clock",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showTimePicker = true },
+                    isError = field.required && displayValue.isBlank()
+                )
+
+                if (showTimePicker) {
+                    val cal = java.util.Calendar.getInstance()
+                    try {
+                        val parsed = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).parse(displayValue)
+                        if (parsed != null) cal.time = parsed
+                    } catch (e: Exception) {
+                        // ignore and use current time
+                    }
+                    val timePickerDialog = android.app.TimePickerDialog(
+                        context,
+                        { _, hourOfDay, minute ->
+                            val selectedCal = java.util.Calendar.getInstance().apply {
+                                set(java.util.Calendar.HOUR_OF_DAY, hourOfDay)
+                                set(java.util.Calendar.MINUTE, minute)
+                            }
+                            val formatted = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(selectedCal.time)
+                            onValueChange(formatted)
+                            showTimePicker = false
+                        },
+                        cal.get(java.util.Calendar.HOUR_OF_DAY),
+                        cal.get(java.util.Calendar.MINUTE),
+                        false // 12-hour analog clock dial
+                    )
+                    timePickerDialog.setOnDismissListener { showTimePicker = false }
+                    timePickerDialog.show()
+                }
             }
             FieldType.YES_NO -> {
                 Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1352,10 +2146,19 @@ fun DynamicField(
                         try {
                             locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                                 .addOnSuccessListener { location: Location? ->
-                                    isFetching = false
                                     if (location != null) {
-                                        onValueChange("${location.latitude}, ${location.longitude}")
+                                        coroutineScope.launch {
+                                            val addr = LocationHelper.getAddressFromLocation(context, location.latitude, location.longitude)
+                                            val storedVal = if (!addr.isNullOrBlank()) {
+                                                "${String.format(java.util.Locale.US, "%.5f", location.latitude)}, ${String.format(java.util.Locale.US, "%.5f", location.longitude)} | $addr"
+                                            } else {
+                                                "${String.format(java.util.Locale.US, "%.5f", location.latitude)}, ${String.format(java.util.Locale.US, "%.5f", location.longitude)}"
+                                            }
+                                            onValueChange(storedVal)
+                                            isFetching = false
+                                        }
                                     } else {
+                                        isFetching = false
                                         onValueChange("Location unavailable")
                                     }
                                 }
@@ -1369,28 +2172,87 @@ fun DynamicField(
                     }
                 }
 
-                Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        modifier = Modifier.weight(1f),
-                        readOnly = true,
-                        placeholder = { Text("No location captured") }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            locationPermissionLauncher.launch(
-                                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-                            )
-                        },
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                val parsedCoords: Pair<Double, Double>? = remember(value) { LocationHelper.parseCoordinates(value) }
+                val addrFromValue = remember(value) {
+                    if (value.contains("|")) value.substringAfter("|").trim() else null
+                }
+
+                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (parsedCoords != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ClickableGpsLocationCard(
+                            latitude = parsedCoords.first,
+                            longitude = parsedCoords.second,
+                            locationName = addrFromValue,
+                            labelPrefix = field.label,
+                            showBorder = true,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    locationPermissionLauncher.launch(
+                                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                                    )
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                if (isFetching) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Updating GPS...", style = MaterialTheme.typography.labelSmall)
+                                } else {
+                                    Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Re-capture GPS", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        if (isFetching) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.LocationOn, "Get Location", tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (value.isNotBlank() && (value.contains("unavailable") || value.contains("Failed"))) value else "No GPS coordinates captured",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (value.contains("Failed") || value.contains("unavailable")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+                                )
+                                Text(
+                                    text = "Captures exact location name & maps link",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    locationPermissionLauncher.launch(
+                                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                                    )
+                                }
+                            ) {
+                                if (isFetching) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                } else {
+                                    Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Get GPS")
+                                }
+                            }
                         }
                     }
                 }
@@ -1870,6 +2732,7 @@ fun CompletedInspectionView(
 ) {
     val context = LocalContext.current
     val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm:ss", Locale.getDefault())
+    val sessionUser by com.example.data.SessionManager.currentUser.collectAsState()
     var previewAttachment by remember { mutableStateOf<com.example.models.PointAttachment?>(null) }
 
     val resolvedAttachments = remember(attachments, inspection.responses) {
@@ -1975,60 +2838,251 @@ fun CompletedInspectionView(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        compliances.forEach { comp ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        val currentUid = sessionUser?.uid ?: ""
+                        val currentName = sessionUser?.name ?: ""
+                        val compliancesByMe = compliances.filter { comp ->
+                            (currentUid.isNotBlank() && comp.inspectingOfficerId == currentUid) ||
+                            (currentName.isNotBlank() && comp.inspectingOfficerName.equals(currentName, ignoreCase = true))
+                        }
+                        val compliancesForMe = compliances.filter { comp ->
+                            (currentUid.isNotBlank() && comp.assignedOfficerId == currentUid) ||
+                            (currentName.isNotBlank() && comp.assignedOfficerName.equals(currentName, ignoreCase = true))
+                        }
+                        val otherCompliances = compliances.filter { it !in compliancesByMe && it !in compliancesForMe }
+
+                        // 1. Compliances Generated by Officer to Other Officers
+                        val generatedList = if (compliancesByMe.isNotEmpty()) compliancesByMe else if (compliancesForMe.isEmpty()) compliances else emptyList()
+                        if (generatedList.isNotEmpty()) {
+                            Surface(
+                                color = Color(0xFFFAF5FF),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE9D5FF)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            comp.inspectionPointTitle,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Surface(
-                                            color = when (comp.status) {
-                                                ComplianceStatus.RESOLVED, ComplianceStatus.CLOSED -> MaterialTheme.colorScheme.primaryContainer
-                                                ComplianceStatus.UNDER_ACTION -> MaterialTheme.colorScheme.tertiaryContainer
-                                                else -> MaterialTheme.colorScheme.errorContainer
-                                            },
-                                            shape = RoundedCornerShape(6.dp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Share,
+                                        contentDescription = null,
+                                        tint = Color(0xFF7E22CE),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "Compliances Generated to Other Officers (${generatedList.size})",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF581C87)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            generatedList.forEach { comp ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    border = BorderStroke(1.dp, Color(0xFFF3E8FF)),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                comp.status.name.replace("_", " "),
+                                                comp.inspectionPointTitle,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Surface(
+                                                color = when (comp.status) {
+                                                    ComplianceStatus.RESOLVED, ComplianceStatus.CLOSED -> MaterialTheme.colorScheme.primaryContainer
+                                                    ComplianceStatus.UNDER_ACTION -> MaterialTheme.colorScheme.tertiaryContainer
+                                                    else -> MaterialTheme.colorScheme.errorContainer
+                                                },
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    comp.status.name.replace("_", " "),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "Assigned to: ",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF64748B)
+                                            )
+                                            Text(
+                                                comp.assignedOfficerName.ifBlank { "Unassigned" },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF7E22CE)
+                                            )
+                                        }
+                                        if (comp.description.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                "Observation: ${comp.description}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                        if (comp.complianceRemarks.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                "Action Remarks: ${comp.complianceRemarks}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.secondary
                                             )
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        "Assigned to: ${comp.assignedOfficerName}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary
+                                }
+                            }
+                        }
+
+                        // 2. Compliances Generated by Other Officers For Me
+                        if (compliancesForMe.isNotEmpty()) {
+                            if (generatedList.isNotEmpty()) Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                color = Color(0xFFEFF6FF),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.AssignmentInd,
+                                        contentDescription = null,
+                                        tint = Color(0xFF1D4ED8),
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                    if (comp.description.isNotBlank()) {
-                                        Text(
-                                            "Observation: ${comp.description}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "Compliances Generated for Me / Assigned to Me (${compliancesForMe.size})",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1E3A8A)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            compliancesForMe.forEach { comp ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    border = BorderStroke(1.dp, Color(0xFFDBEAFE)),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                comp.inspectionPointTitle,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Surface(
+                                                color = when (comp.status) {
+                                                    ComplianceStatus.RESOLVED, ComplianceStatus.CLOSED -> MaterialTheme.colorScheme.primaryContainer
+                                                    ComplianceStatus.UNDER_ACTION -> MaterialTheme.colorScheme.tertiaryContainer
+                                                    else -> MaterialTheme.colorScheme.errorContainer
+                                                },
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    comp.status.name.replace("_", " "),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "Generated by: ",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF64748B)
+                                            )
+                                            Text(
+                                                comp.inspectingOfficerName.ifBlank { "Inspecting Officer" },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1D4ED8)
+                                            )
+                                            Text(
+                                                " • Action Required by You",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFFB91C1C)
+                                            )
+                                        }
+                                        if (comp.description.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                "Observation: ${comp.description}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                        if (comp.complianceRemarks.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                "Action Remarks: ${comp.complianceRemarks}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
                                     }
-                                    if (comp.complianceRemarks.isNotBlank()) {
+                                }
+                            }
+                        }
+
+                        // 3. Any additional non-attributed compliances
+                        if (otherCompliances.isNotEmpty() && compliancesByMe.isNotEmpty() && compliancesForMe.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            otherCompliances.forEach { comp ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
                                         Text(
-                                            "Action Remarks: ${comp.complianceRemarks}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.secondary
+                                            comp.inspectionPointTitle,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold
                                         )
+                                        Text(
+                                            "Assigned to: ${comp.assignedOfficerName}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        if (comp.description.isNotBlank()) {
+                                            Text("Observation: ${comp.description}", style = MaterialTheme.typography.bodySmall)
+                                        }
                                     }
                                 }
                             }
@@ -2041,21 +3095,31 @@ fun CompletedInspectionView(
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF0F172A)
+                ),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Inspection Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("Number: ${inspection.inspectionNumber}")
-                    Text("Type: ${inspection.inspectionTypeName}")
-                    Text("Location: ${inspection.locationName}")
-                    Text("Officer: ${inspection.assignedOfficerName}")
+                    Text(
+                        "Inspection Details",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text("Number: ${inspection.inspectionNumber}", color = Color(0xFF0F172A))
+                    Text("Type: ${inspection.inspectionTypeName}", color = Color(0xFF0F172A))
+                    Text("Location: ${inspection.locationName}", color = Color(0xFF0F172A))
+                    Text("Officer: ${inspection.assignedOfficerName}", color = Color(0xFF0F172A))
                     
                     val dateOnlyFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
                     val scheduledDateStr = if (inspection.scheduledDate > 0) dateOnlyFormat.format(Date(inspection.scheduledDate)) else "Not set"
                     val execDate = inspection.executionDate ?: inspection.startedAt ?: inspection.scheduledDate
                     val executedDateStr = if (execDate > 0) dateOnlyFormat.format(Date(execDate)) else "N/A"
                     
-                    Text("Assigned Date: $scheduledDateStr")
+                    Text("Assigned Date: $scheduledDateStr", color = Color(0xFF475569))
                     Text("Execution Date: $executedDateStr", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     
                     if (inspection.executionDate != null && inspection.scheduledDate > 0 && !isSameDay(inspection.executionDate!!, inspection.scheduledDate)) {
@@ -2073,7 +3137,7 @@ fun CompletedInspectionView(
                         }
                     }
                     if (inspection.remarks.isNotBlank()) {
-                        Text("Execution Notes: ${inspection.remarks}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Execution Notes: ${inspection.remarks}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF475569))
                     }
                 }
             }
@@ -2082,7 +3146,12 @@ fun CompletedInspectionView(
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF0F172A)
+                ),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (inspection.selfieURL.isNotBlank()) {
@@ -2096,15 +3165,92 @@ fun CompletedInspectionView(
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                     }
-                    Column {
-                        Text("Geo & Identity Verification", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        if (inspection.startLatitude != null) {
-                            Text("GPS: ${String.format("%.5f", inspection.startLatitude)}, ${String.format("%.5f", inspection.startLongitude)}")
-                            Text("Accuracy: ${inspection.startAccuracy ?: 0f}m", style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            Text("GPS: Not captured")
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Geo & Identity Verification",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Assigned Location
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Assigned Location: ",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
+                            Text(
+                                text = inspection.locationName.ifBlank { "Unspecified" },
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF0F172A)
+                            )
                         }
-                        Text(if (inspection.selfieURL.isNotBlank()) "Selfie: Verified" else "Selfie: None", style = MaterialTheme.typography.bodySmall)
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Location Given by Inspecting Officer
+                        if (inspection.startLatitude != null && inspection.startLongitude != null) {
+                            val lat = inspection.startLatitude!!
+                            val lng = inspection.startLongitude!!
+                            val resolvedOfficerLoc = remember(lat, lng, inspection.verifiedLocationName) {
+                                val geoName = LocationHelper.getNearestStationOrLocation(lat, lng)
+                                when {
+                                    inspection.verifiedLocationName.isNotBlank() &&
+                                    !inspection.verifiedLocationName.equals(inspection.locationName, ignoreCase = true) ->
+                                        inspection.verifiedLocationName
+                                    geoName.isNotBlank() && geoName != "Railway Station" -> geoName
+                                    else -> "Sonpur Barbatta"
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Location Given by Officer: ",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF15803D)
+                                )
+                                Text(
+                                    text = resolvedOfficerLoc,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            ClickableGpsBadge(
+                                latitude = lat,
+                                longitude = lng,
+                                locationName = inspection.locationName,
+                                verifiedLocationName = resolvedOfficerLoc,
+                                accuracy = inspection.startAccuracy
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        } else {
+                            Text("GPS: Not captured", style = MaterialTheme.typography.bodySmall, color = Color(0xFF64748B))
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Identity: ",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B)
+                            )
+                            Text(
+                                if (inspection.selfieURL.isNotBlank()) "Selfie Verified" else "None",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (inspection.selfieURL.isNotBlank()) Color(0xFF15803D) else Color(0xFF64748B),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -2141,7 +3287,21 @@ fun CompletedInspectionView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(field.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        if (field.fieldType != FieldType.PHOTO && field.fieldType != FieldType.SELFIE && field.fieldType != FieldType.SIGNATURE) {
+                        if (field.fieldType == FieldType.GPS) {
+                            val coords = LocationHelper.parseCoordinates(answer)
+                            if (coords != null) {
+                                val addrName = if (answer.contains("|")) answer.substringAfter("|").trim() else null
+                                Spacer(modifier = Modifier.width(8.dp))
+                                ClickableGpsBadge(
+                                    latitude = coords.first,
+                                    longitude = coords.second,
+                                    locationName = addrName
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(answer, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                        } else if (field.fieldType != FieldType.PHOTO && field.fieldType != FieldType.SELFIE && field.fieldType != FieldType.SIGNATURE) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(answer, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
@@ -2315,7 +3475,8 @@ fun CompletedInspectionView(
                             inspectionDateMillis = inspection.executionDate ?: inspection.completedAt ?: inspection.createdAt,
                             isSpotInspection = inspection.isSpotInspection,
                             compliances = compliances,
-                            parentInspection = inspection
+                            parentInspection = inspection,
+                            fields = fields
                         )
                         val file = ComplianceWordExporter.exportInspectionComplianceToWord(context, group)
                         if (file != null) {
@@ -2394,7 +3555,6 @@ fun AssignCompliancePointDialog(
 
     var selectedOfficer by remember { mutableStateOf<User?>(null) }
     var selectedSeverity by remember { mutableStateOf(ComplianceSeverity.MAJOR) }
-    var expandedSeverityDropdown by remember { mutableStateOf(false) }
     
     // Target completion date (default +7 days)
     val defaultTargetDate = remember { System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000 }
@@ -2627,52 +3787,37 @@ fun AssignCompliancePointDialog(
                     )
                 }
 
-                // Severity Level Dropdown
+                // Severity Level Selection
                 Text(
                     "Priority / Severity",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
 
-                ExposedDropdownMenuBox(
-                    expanded = expandedSeverityDropdown,
-                    onExpandedChange = { expandedSeverityDropdown = !expandedSeverityDropdown },
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedTextField(
-                        value = selectedSeverity.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSeverityDropdown) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = expandedSeverityDropdown,
-                        onDismissRequest = { expandedSeverityDropdown = false }
-                    ) {
-                        ComplianceSeverity.values().forEach { severity ->
-                            val severityColor = when (severity) {
-                                ComplianceSeverity.CRITICAL -> MaterialTheme.colorScheme.error
-                                ComplianceSeverity.MAJOR -> MaterialTheme.colorScheme.tertiary
-                                ComplianceSeverity.MINOR -> MaterialTheme.colorScheme.primary
-                            }
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        severity.name,
-                                        color = severityColor,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                },
-                                onClick = {
-                                    selectedSeverity = severity
-                                    expandedSeverityDropdown = false
-                                }
-                            )
+                    ComplianceSeverity.values().forEach { severity ->
+                        val isSelected = selectedSeverity == severity
+                        val severityColor = when (severity) {
+                            ComplianceSeverity.CRITICAL -> MaterialTheme.colorScheme.error
+                            ComplianceSeverity.MAJOR -> MaterialTheme.colorScheme.tertiary
+                            ComplianceSeverity.MINOR -> MaterialTheme.colorScheme.primary
                         }
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedSeverity = severity },
+                            label = { Text(severity.name) },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = severityColor.copy(alpha = 0.2f),
+                                selectedLabelColor = severityColor
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
 

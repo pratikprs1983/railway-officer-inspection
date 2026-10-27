@@ -38,6 +38,7 @@ import com.example.models.AttachmentSourceType
 import com.example.models.PointAttachment
 import com.example.util.AttachmentStorageHelper
 import java.io.File
+import java.util.UUID
 
 @Composable
 fun PointAttachmentSection(
@@ -52,6 +53,7 @@ fun PointAttachmentSection(
     val context = LocalContext.current
     var showSourceDialog by remember { mutableStateOf(false) }
     var previewAttachment by remember { mutableStateOf<PointAttachment?>(null) }
+    var pendingRemarks by remember { mutableStateOf("") }
 
     // State for Camera Capture
     var pendingCameraFile by remember { mutableStateOf<File?>(null) }
@@ -67,13 +69,15 @@ fun PointAttachmentSection(
                 context = context,
                 cameraFile = file,
                 contentUri = uri,
-                fieldName = fieldName
+                fieldName = fieldName,
+                remarks = pendingRemarks
             )
             onAttachmentAdded(attachment)
             Toast.makeText(context, "Photo attached successfully", Toast.LENGTH_SHORT).show()
         }
         pendingCameraFile = null
         pendingCameraUri = null
+        pendingRemarks = ""
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -107,7 +111,8 @@ fun PointAttachmentSection(
                 sourceUri = sourceUri,
                 inspectionId = inspectionId,
                 fieldName = fieldName,
-                sourceType = AttachmentSourceType.GALLERY
+                sourceType = AttachmentSourceType.GALLERY,
+                remarks = pendingRemarks
             )
             if (attachment != null) {
                 onAttachmentAdded(attachment)
@@ -116,6 +121,7 @@ fun PointAttachmentSection(
                 Toast.makeText(context, "Could not attach image", Toast.LENGTH_SHORT).show()
             }
         }
+        pendingRemarks = ""
     }
 
     // Document Picker (PDF, DOC, TXT, sheets, etc.)
@@ -128,7 +134,8 @@ fun PointAttachmentSection(
                 sourceUri = sourceUri,
                 inspectionId = inspectionId,
                 fieldName = fieldName,
-                sourceType = AttachmentSourceType.DOCUMENT
+                sourceType = AttachmentSourceType.DOCUMENT,
+                remarks = pendingRemarks
             )
             if (attachment != null) {
                 onAttachmentAdded(attachment)
@@ -137,6 +144,7 @@ fun PointAttachmentSection(
                 Toast.makeText(context, "Could not attach document", Toast.LENGTH_SHORT).show()
             }
         }
+        pendingRemarks = ""
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -146,7 +154,7 @@ fun PointAttachmentSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Attachment Action Button with Paperclip icon
+            // Attachment Action Button with Paperclip and Note icon
             OutlinedButton(
                 onClick = { showSourceDialog = true },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -160,13 +168,13 @@ fun PointAttachmentSection(
             ) {
                 Icon(
                     imageVector = Icons.Default.AttachFile,
-                    contentDescription = "Attach File",
+                    contentDescription = "Attach File or Remarks",
                     modifier = Modifier.size(16.dp),
                     tint = if (attachments.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (attachments.isEmpty()) "Attach File" else "Add File (${attachments.size})",
+                    text = if (attachments.isEmpty()) "Attach File or Remarks" else "Add File or Remarks (${attachments.size})",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (attachments.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -179,7 +187,7 @@ fun PointAttachmentSection(
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "${attachments.size} file${if (attachments.size == 1) "" else "s"} attached",
+                        text = "${attachments.size} item${if (attachments.size == 1) "" else "s"} attached",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -212,12 +220,34 @@ fun PointAttachmentSection(
         }
     }
 
-    // Modal Dialog: Choose Attachment Option (Camera, Gallery, Document)
+    // Modal Dialog: Choose Attachment Option (Remark Only, Camera, Gallery, Document)
     if (showSourceDialog) {
         AttachmentOptionDialog(
             fieldLabel = fieldLabel,
             onDismiss = { showSourceDialog = false },
-            onSelectCamera = {
+            onSaveRemarkOnly = { rem ->
+                showSourceDialog = false
+                if (rem.isNotBlank()) {
+                    val remarkItem = PointAttachment(
+                        id = UUID.randomUUID().toString(),
+                        fieldName = fieldName,
+                        fileName = "Remark: ${rem.take(20)}...",
+                        fileUri = "",
+                        filePath = "",
+                        sourceType = AttachmentSourceType.REMARK,
+                        mimeType = "text/plain",
+                        fileSizeFormatted = "Observation Note",
+                        timestamp = System.currentTimeMillis(),
+                        remarks = rem
+                    )
+                    onAttachmentAdded(remarkItem)
+                    Toast.makeText(context, "Remark attached successfully", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Please enter remarks first", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSelectCamera = { rem ->
+                pendingRemarks = rem
                 showSourceDialog = false
                 val permissionGranted = ContextCompat.checkSelfPermission(
                     context,
@@ -237,11 +267,13 @@ fun PointAttachmentSection(
                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             },
-            onSelectGallery = {
+            onSelectGallery = { rem ->
+                pendingRemarks = rem
                 showSourceDialog = false
                 galleryLauncher.launch("image/*")
             },
-            onSelectDocument = {
+            onSelectDocument = { rem ->
+                pendingRemarks = rem
                 showSourceDialog = false
                 documentLauncher.launch("*/*")
             }
@@ -267,10 +299,13 @@ fun PointAttachmentSection(
 fun AttachmentOptionDialog(
     fieldLabel: String,
     onDismiss: () -> Unit,
-    onSelectCamera: () -> Unit,
-    onSelectGallery: () -> Unit,
-    onSelectDocument: () -> Unit
+    onSaveRemarkOnly: (String) -> Unit,
+    onSelectCamera: (String) -> Unit,
+    onSelectGallery: (String) -> Unit,
+    onSelectDocument: (String) -> Unit
 ) {
+    var remarksText by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -298,9 +333,43 @@ fun AttachmentOptionDialog(
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Remarks input field as requested by user
+                OutlinedTextField(
+                    value = remarksText,
+                    onValueChange = { remarksText = it },
+                    label = { Text("Remarks / Observation Notes") },
+                    placeholder = { Text("Enter remarks for this attachment (optional)") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.EditNote,
+                            contentDescription = "Remarks",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("attachment_remarks_input"),
+                    minLines = 2,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+
+                Text(
+                    text = "Select Attachment Source:",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
                 // Option 1: CAMERA
                 Surface(
-                    onClick = onSelectCamera,
+                    onClick = { onSelectCamera(remarksText.trim()) },
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
@@ -342,7 +411,7 @@ fun AttachmentOptionDialog(
 
                 // Option 2: GALLERY
                 Surface(
-                    onClick = onSelectGallery,
+                    onClick = { onSelectGallery(remarksText.trim()) },
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f)),
@@ -384,7 +453,7 @@ fun AttachmentOptionDialog(
 
                 // Option 3: DOCUMENT
                 Surface(
-                    onClick = onSelectDocument,
+                    onClick = { onSelectDocument(remarksText.trim()) },
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)),
@@ -423,9 +492,66 @@ fun AttachmentOptionDialog(
                         }
                     }
                 }
+
+                // Option 4: SAVE REMARK / NOTE ONLY
+                Surface(
+                    onClick = {
+                        if (remarksText.trim().isNotBlank()) {
+                            onSaveRemarkOnly(remarksText.trim())
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth().testTag("option_remark_only")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.EditNote,
+                                    contentDescription = "Remark Only",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Attach Remarks Only",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (remarksText.isBlank()) "Type note above, then tap to attach without file" else "Attach: \"${remarksText.take(28)}...\"",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            if (remarksText.trim().isNotBlank()) {
+                Button(
+                    onClick = { onSaveRemarkOnly(remarksText.trim()) },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Attach Remark")
+                }
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
@@ -448,82 +574,119 @@ fun AttachmentChipCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier
-            .width(180.dp)
+            .width(200.dp)
             .clickable { onClick() }
     ) {
-        Row(
-            modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: Image Thumbnail or Document Icon
-            if (attachment.sourceType == AttachmentSourceType.DOCUMENT) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Description,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(24.dp)
+        Column(modifier = Modifier.padding(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left: Image Thumbnail, Document Icon, or Remark Icon
+                if (attachment.sourceType == AttachmentSourceType.DOCUMENT) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                } else if (attachment.sourceType == AttachmentSourceType.REMARK) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.EditNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                    ) {
+                        val uriOrPath = if (attachment.filePath.isNotBlank() && File(attachment.filePath).exists()) {
+                            File(attachment.filePath)
+                        } else {
+                            attachment.fileUri
+                        }
+                        AsyncImage(
+                            model = uriOrPath,
+                            contentDescription = attachment.fileName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Center: Name & Size
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = attachment.fileName,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (attachment.fileSizeFormatted.isNotBlank())
+                            "${attachment.sourceType.name.lowercase().replaceFirstChar { it.uppercase() }} • ${attachment.fileSizeFormatted}"
+                        else attachment.sourceType.name.lowercase().replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1
+                    )
+                }
+
+                // Right: Delete button
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    val uriOrPath = if (attachment.filePath.isNotBlank() && File(attachment.filePath).exists()) {
-                        File(attachment.filePath)
-                    } else {
-                        attachment.fileUri
-                    }
-                    AsyncImage(
-                        model = uriOrPath,
-                        contentDescription = attachment.fileName,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Delete Attachment",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Center: Name & Size
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = attachment.fileName,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = if (attachment.fileSizeFormatted.isNotBlank())
-                        "${attachment.sourceType.name.lowercase().replaceFirstChar { it.uppercase() }} • ${attachment.fileSizeFormatted}"
-                    else attachment.sourceType.name.lowercase().replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1
-                )
-            }
-
-            // Right: Delete button
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Delete Attachment",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(16.dp)
-                )
+            // Remarks line if present
+            if (attachment.remarks.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(4.dp),
+                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Remarks: ${attachment.remarks}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         }
     }
@@ -586,7 +749,7 @@ fun AttachmentPreviewDialog(
                     }
                 }
 
-                // Photo Content
+                // Photo or Remark Content
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -594,17 +757,88 @@ fun AttachmentPreviewDialog(
                         .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    val uriOrPath = if (attachment.filePath.isNotBlank() && File(attachment.filePath).exists()) {
-                        File(attachment.filePath)
+                    if (attachment.sourceType == AttachmentSourceType.REMARK) {
+                        Surface(
+                            color = Color(0xFF1E293B),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.5.dp, Color(0xFFEA580C)),
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .padding(16.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.EditNote,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFB923C),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        "OBSERVATION / REMARK NOTE",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFB923C)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = attachment.remarks,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     } else {
-                        attachment.fileUri
+                        val uriOrPath = if (attachment.filePath.isNotBlank() && File(attachment.filePath).exists()) {
+                            File(attachment.filePath)
+                        } else {
+                            attachment.fileUri
+                        }
+                        AsyncImage(
+                            model = uriOrPath,
+                            contentDescription = attachment.fileName,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
-                    AsyncImage(
-                        model = uriOrPath,
-                        contentDescription = attachment.fileName,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
+
+                    if (attachment.remarks.isNotBlank()) {
+                        Surface(
+                            color = Color(0xCC0F172A),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFFF97316)),
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth(0.95f)
+                                .padding(bottom = 16.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Notes,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFED7AA),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "REMARKS / OBSERVATION",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFED7AA)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = attachment.remarks,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

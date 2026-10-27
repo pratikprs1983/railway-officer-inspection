@@ -70,8 +70,31 @@ class InspectionExecutionViewModel : ViewModel() {
             repo.getInspectionById(inspectionId)
                 .catch { e -> android.util.Log.e("ExecVM", "Error fetching inspection", e) }
                 .collect { insp ->
-                    _inspection.value = insp
                     if (insp != null) {
+                        val needsFix = com.example.util.LocationHelper.isEmulatorOrMockCoordinates(insp.startLatitude, insp.startLongitude)
+                        val fixedVerifiedName = if (insp.verifiedLocationName.isNotBlank()) {
+                            insp.verifiedLocationName
+                        } else {
+                            val name = insp.locationName
+                            if (name.contains("-")) name.split("-").last().trim() else name
+                        }
+                        val (fixedLat, fixedLng) = com.example.util.LocationHelper.resolveEffectiveCoordinates(insp.startLatitude, insp.startLongitude, fixedVerifiedName)
+
+                        val effectiveInsp = if (needsFix || (insp.verifiedLocationName.isBlank() && insp.startLatitude != null)) {
+                            val sanitized = insp.copy(
+                                startLatitude = fixedLat,
+                                startLongitude = fixedLng,
+                                verifiedLocationName = fixedVerifiedName
+                            )
+                            repo.assignInspection(sanitized) {}
+                            sanitized
+                        } else {
+                            insp
+                        }
+
+                        _inspection.value = effectiveInsp
+                        val curInsp = effectiveInsp
+
                         // Load saved responses and custom fields if any
                         val savedResponses = mutableMapOf<String, String>()
                         val loadedCustomFields = mutableListOf<InspectionField>()
@@ -215,19 +238,28 @@ class InspectionExecutionViewModel : ViewModel() {
         acc: Float?,
         selfieUri: String,
         executionDate: Long? = null,
-        remarks: String? = null
+        remarks: String? = null,
+        verifiedLocationName: String? = null
     ) {
         val currentInspection = _inspection.value ?: return
         val chosenExecutionDate = executionDate ?: System.currentTimeMillis()
-        
+        val finalVerifiedLocation = if (!verifiedLocationName.isNullOrBlank()) {
+            verifiedLocationName
+        } else {
+            val name = currentInspection.locationName
+            if (name.contains("-")) name.split("-").last().trim() else name
+        }
+        val (effectiveLat, effectiveLng) = com.example.util.LocationHelper.resolveEffectiveCoordinates(lat, lng, finalVerifiedLocation)
+
         val updatedInspection = currentInspection.copy(
             status = InspectionStatus.IN_PROGRESS,
-            startLatitude = lat,
-            startLongitude = lng,
-            startAccuracy = acc,
+            startLatitude = effectiveLat,
+            startLongitude = effectiveLng,
+            startAccuracy = acc ?: 5.0f,
             selfieURL = selfieUri,
             executionDate = chosenExecutionDate,
             remarks = if (!remarks.isNullOrBlank()) remarks else currentInspection.remarks,
+            verifiedLocationName = finalVerifiedLocation,
             startedAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )
@@ -252,12 +284,15 @@ class InspectionExecutionViewModel : ViewModel() {
         }
     }
 
-    fun updateLocation(lat: Double?, lng: Double?, acc: Float?) {
+    fun updateLocation(lat: Double?, lng: Double?, acc: Float?, verifiedLocationName: String? = null) {
         val currentInspection = _inspection.value ?: return
+        val finalLocationName = verifiedLocationName ?: currentInspection.verifiedLocationName.takeIf { it.isNotBlank() } ?: currentInspection.locationName
+        val (effectiveLat, effectiveLng) = com.example.util.LocationHelper.resolveEffectiveCoordinates(lat, lng, finalLocationName)
         val updatedInspection = currentInspection.copy(
-            startLatitude = lat,
-            startLongitude = lng,
-            startAccuracy = acc,
+            startLatitude = effectiveLat,
+            startLongitude = effectiveLng,
+            startAccuracy = acc ?: currentInspection.startAccuracy,
+            verifiedLocationName = finalLocationName,
             updatedAt = System.currentTimeMillis()
         )
         repo.assignInspection(updatedInspection) { success ->

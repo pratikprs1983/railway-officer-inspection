@@ -1,0 +1,66 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- Outer Decorative Ring -->
+    <path
+        android:fillColor="#EA580C"
+        android:pathData="M60,4 C29.1,4 4,29.1 4,60 C4,90.9 29.1,116 60,116 C90.9,116 116,90.9 116,60 C116,29.1 90.9,4 60,4 Z" />
+    
+    <!-- White Inner Gap Ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,9 C31.8,9 9,31.8 9,60 C9,88.2 31.8,111 60,111 C88.2,111 111,88.2 111,60 C111,31.8 88.2,9 60,9 Z" />
+
+    <!-- Blue / Navy Center Circle (Indian Railways Navy) -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M60,14 C34.6,14 14,34.6 14,60 C14,85.4 34.6,106 60,106 C85.4,106 106,85.4 106,60 C106,34.6 85.4,14 60,14 Z" />
+
+    <!-- Gold Accent Ring -->
+    <path
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="2"
+        android:pathData="M60,18 C36.8,18 18,36.8 18,60 C18,83.2 36.8,102 60,102 C83.2,102 102,83.2 102,60 C102,36.8 83.2,18 60,18 Z" />
+
+    <!-- Ashoka Lion Pillar Capital at Top (Gold) -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M56,22 h8 v4 h-8 z M54,26 h12 v2 h-12 z M58,20 h4 v2 h-4 z" />
+
+    <!-- Central Steam Locomotive Silhouette (White & Gold) -->
+    <!-- Train Cab and Boiler -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,48 C42,43 45,39 50,39 h20 c5,0 8,4 8,9 v22 c0,3 -2,5 -5,5 l4,5 v2 H41 v-2 l4,-5 c-3,0 -5,-2 -5,-5 Z" />
+    
+    <!-- Train Windshield Glass -->
+    <path
+        android:fillColor="#1E3A8A"
+        android:pathData="M46,44 h28 v12 H46 Z" />
+    
+    <!-- Central Headlight (Gold) -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M60,37 C62.2,37 64,38.8 64,41 C64,43.2 62.2,45 60,45 C57.8,45 56,43.2 56,41 C56,38.8 57.8,37 60,37 Z" />
+
+    <!-- Train Headlight Beams (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,62 C51.7,62 53,63.3 53,65 C53,66.7 51.7,68 50,68 C48.3,68 47,66.7 47,65 C47,63.3 48.3,62 50,62 Z M70,62 C71.7,62 73,63.3 73,65 C73,66.7 71.7,68 70,68 C68.3,68 67,66.7 67,65 C67,63.3 68.3,62 70,62 Z" />
+
+    <!-- Cowcatcher / Front Buffer Grill -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M48,72 h24 v3 H48 Z" />
+
+    <!-- Railway Tracks & Sleepers (Gold) -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M38,84 h44 v3 H38 Z M32,90 h56 v3 H32 Z M26,96 h68 v3 H26 Z" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:pathData="M46,80 L38,102 M74,80 L82,102" />
+</vector>

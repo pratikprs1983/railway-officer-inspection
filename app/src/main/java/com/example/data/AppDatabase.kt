@@ -7,6 +7,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.models.FormCategory
+import com.example.models.FormSubcategory
 import com.example.models.Inspection
 import com.example.models.InspectionField
 import com.example.models.InspectionType
@@ -41,14 +43,61 @@ interface InspectionDao {
     @androidx.room.Delete
     suspend fun deleteInspectionType(type: InspectionType)
     
+    // Categories
+    @Query("SELECT * FROM form_categories WHERE inspectionTypeId = :typeId ORDER BY displayOrder ASC, createdAt ASC")
+    fun getCategoriesForType(typeId: String): Flow<List<FormCategory>>
+    @Query("SELECT * FROM form_categories")
+    suspend fun getAllCategoriesList(): List<FormCategory>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCategory(category: FormCategory)
+    @androidx.room.Delete
+    suspend fun deleteCategory(category: FormCategory)
+    @Query("DELETE FROM form_categories WHERE id = :categoryId")
+    suspend fun deleteCategoryById(categoryId: String)
+
+    // Subcategories
+    @Query("SELECT * FROM form_subcategories WHERE inspectionTypeId = :typeId ORDER BY displayOrder ASC, createdAt ASC")
+    fun getSubcategoriesForType(typeId: String): Flow<List<FormSubcategory>>
+    @Query("SELECT * FROM form_subcategories WHERE categoryId = :categoryId ORDER BY displayOrder ASC, createdAt ASC")
+    fun getSubcategoriesForCategory(categoryId: String): Flow<List<FormSubcategory>>
+    @Query("SELECT * FROM form_subcategories")
+    suspend fun getAllSubcategoriesList(): List<FormSubcategory>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubcategory(subcategory: FormSubcategory)
+    @androidx.room.Delete
+    suspend fun deleteSubcategory(subcategory: FormSubcategory)
+    @Query("DELETE FROM form_subcategories WHERE id = :subcategoryId")
+    suspend fun deleteSubcategoryById(subcategoryId: String)
+    @Query("DELETE FROM form_subcategories WHERE categoryId = :categoryId")
+    suspend fun deleteSubcategoriesByCategoryId(categoryId: String)
+    @Query("DELETE FROM form_subcategories WHERE inspectionTypeId = :typeId AND categoryId != '' AND categoryId NOT IN (SELECT id FROM form_categories WHERE inspectionTypeId = :typeId)")
+    suspend fun purgeOrphanedSubcategories(typeId: String)
+
+    // Fields
     @Query("SELECT * FROM inspection_fields WHERE inspectionTypeId = :typeId ORDER BY displayOrder ASC")
     fun getInspectionFields(typeId: String): Flow<List<InspectionField>>
+    @Query("SELECT * FROM inspection_fields WHERE inspectionTypeId = :typeId ORDER BY displayOrder ASC")
+    fun getInspectionFieldsListSync(typeId: String): List<InspectionField>
     @Query("SELECT * FROM inspection_fields")
     suspend fun getAllInspectionFieldsList(): List<InspectionField>
+    @Query("SELECT * FROM inspection_fields ORDER BY displayOrder ASC")
+    fun getAllInspectionFieldsListSync(): List<InspectionField>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInspectionField(field: InspectionField)
     @androidx.room.Delete
     suspend fun deleteInspectionField(field: InspectionField)
+    @Query("DELETE FROM inspection_fields WHERE id = :fieldId")
+    suspend fun deleteFieldById(fieldId: String)
+    @Query("DELETE FROM inspection_fields WHERE categoryId = :categoryId")
+    suspend fun deleteFieldsByCategoryId(categoryId: String)
+    @Query("DELETE FROM inspection_fields WHERE subcategoryId = :subcategoryId")
+    suspend fun deleteFieldsBySubcategoryId(subcategoryId: String)
+    @Query("DELETE FROM inspection_fields WHERE subcategoryId = :subcategoryId OR (categoryId = :categoryId AND LOWER(subcategoryName) = LOWER(:subcategoryName))")
+    suspend fun deleteFieldsBySubcategory(subcategoryId: String, categoryId: String, subcategoryName: String)
+    @Query("DELETE FROM inspection_fields WHERE inspectionTypeId = :typeId AND (categoryId != '' AND categoryId NOT IN (SELECT id FROM form_categories WHERE inspectionTypeId = :typeId))")
+    suspend fun purgeOrphanedCategoryFields(typeId: String)
+    @Query("DELETE FROM inspection_fields WHERE inspectionTypeId = :typeId AND (subcategoryId != '' AND subcategoryId NOT IN (SELECT id FROM form_subcategories WHERE inspectionTypeId = :typeId))")
+    suspend fun purgeOrphanedSubcategoryFields(typeId: String)
     
     @Query("SELECT * FROM inspections ORDER BY createdAt DESC")
     fun getInspections(): Flow<List<Inspection>>
@@ -62,6 +111,9 @@ interface InspectionDao {
     suspend fun insertInspection(inspection: Inspection)
     @androidx.room.Delete
     suspend fun deleteInspection(inspection: Inspection)
+
+    @Query("DELETE FROM inspections WHERE id = :id")
+    suspend fun deleteInspectionById(id: String)
 }
 
 @Dao
@@ -71,23 +123,38 @@ interface ComplianceDao {
     @Query("SELECT * FROM compliances")
     suspend fun getAllCompliancesList(): List<com.example.models.Compliance>
 
-    @Query("SELECT * FROM compliances WHERE inspectionId = :inspectionId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM compliances WHERE (:inspectionId != '' AND (inspectionId = :inspectionId OR inspectionNumber = :inspectionId)) ORDER BY createdAt DESC")
     fun getCompliancesByInspection(inspectionId: String): Flow<List<com.example.models.Compliance>>
 
     @Query("SELECT * FROM compliances WHERE id = :id LIMIT 1")
     suspend fun getComplianceById(id: String): com.example.models.Compliance?
+
+    @Query("SELECT * FROM compliances WHERE (:inspectionId != '' AND inspectionId = :inspectionId) OR (:inspectionNumber != '' AND inspectionNumber = :inspectionNumber)")
+    suspend fun getCompliancesForInspectionList(inspectionId: String, inspectionNumber: String): List<com.example.models.Compliance>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCompliance(compliance: com.example.models.Compliance)
 
     @androidx.room.Delete
     suspend fun deleteCompliance(compliance: com.example.models.Compliance)
+
+    @Query("DELETE FROM compliances WHERE id = :id")
+    suspend fun deleteComplianceById(id: String)
+
+    @Query("DELETE FROM compliances WHERE (:inspectionId != '' AND inspectionId = :inspectionId) OR (:inspectionNumber != '' AND inspectionNumber = :inspectionNumber)")
+    suspend fun deleteCompliancesForInspection(inspectionId: String, inspectionNumber: String)
+
+    @Query("DELETE FROM compliances")
+    suspend fun clearAllCompliances()
 }
 
 @Dao
 interface NotificationDao {
     @Query("SELECT * FROM notifications ORDER BY createdAt DESC")
     fun getAllNotifications(): Flow<List<com.example.models.AppNotification>>
+
+    @Query("SELECT * FROM notifications")
+    suspend fun getAllNotificationsList(): List<com.example.models.AppNotification>
 
     @Query("SELECT * FROM notifications WHERE recipientOfficerId = :officerId OR recipientOfficerId = 'ALL' OR recipientOfficerId = 'ADMIN' OR recipientOfficerId = '' ORDER BY createdAt DESC")
     fun getNotificationsForOfficer(officerId: String): Flow<List<com.example.models.AppNotification>>
@@ -107,6 +174,9 @@ interface NotificationDao {
     @Query("DELETE FROM notifications WHERE id = :id")
     suspend fun deleteNotification(id: String)
 
+    @Query("DELETE FROM notifications WHERE (:inspectionId != '' AND inspectionId = :inspectionId) OR (:inspectionNumber != '' AND inspectionNumber = :inspectionNumber)")
+    suspend fun deleteNotificationsForInspection(inspectionId: String, inspectionNumber: String)
+
     @Query("DELETE FROM notifications")
     suspend fun clearAll()
 }
@@ -118,12 +188,14 @@ interface NotificationDao {
         Section::class,
         LCGate::class,
         InspectionType::class,
+        FormCategory::class,
+        FormSubcategory::class,
         InspectionField::class,
         Inspection::class,
         com.example.models.Compliance::class,
         com.example.models.AppNotification::class
     ],
-    version = 8,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -137,6 +209,12 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE inspections ADD COLUMN verifiedLocationName TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -144,6 +222,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "app_database"
                 )
+                .addMigrations(MIGRATION_9_10)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

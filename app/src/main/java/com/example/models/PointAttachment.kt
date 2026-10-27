@@ -5,7 +5,8 @@ import org.json.JSONObject
 enum class AttachmentSourceType {
     CAMERA,
     GALLERY,
-    DOCUMENT
+    DOCUMENT,
+    REMARK
 }
 
 data class PointAttachment(
@@ -17,7 +18,8 @@ data class PointAttachment(
     val sourceType: AttachmentSourceType = AttachmentSourceType.CAMERA,
     val mimeType: String = "",
     val fileSizeFormatted: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val remarks: String = ""
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -30,6 +32,7 @@ data class PointAttachment(
             put("mimeType", mimeType)
             put("fileSizeFormatted", fileSizeFormatted)
             put("timestamp", timestamp)
+            put("remarks", remarks)
         }
     }
 
@@ -50,7 +53,8 @@ data class PointAttachment(
                 sourceType = srcType,
                 mimeType = json.optString("mimeType", ""),
                 fileSizeFormatted = json.optString("fileSizeFormatted", ""),
-                timestamp = json.optLong("timestamp", System.currentTimeMillis())
+                timestamp = json.optLong("timestamp", System.currentTimeMillis()),
+                remarks = json.optString("remarks", "")
             )
         }
     }

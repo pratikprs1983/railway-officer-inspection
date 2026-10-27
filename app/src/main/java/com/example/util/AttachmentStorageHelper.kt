@@ -83,7 +83,8 @@ object AttachmentStorageHelper {
         sourceUri: Uri,
         inspectionId: String,
         fieldName: String,
-        sourceType: AttachmentSourceType
+        sourceType: AttachmentSourceType,
+        remarks: String = ""
     ): PointAttachment? {
         return try {
             val originalName = queryFileName(context, sourceUri)
@@ -96,6 +97,7 @@ object AttachmentStorageHelper {
                 AttachmentSourceType.CAMERA -> "CAM"
                 AttachmentSourceType.GALLERY -> "GAL"
                 AttachmentSourceType.DOCUMENT -> "DOC"
+                AttachmentSourceType.REMARK -> "REM"
             }
             val destinationFile = File(dir, "${prefix}_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}$extSuffix")
 
@@ -122,7 +124,8 @@ object AttachmentStorageHelper {
                 sourceType = sourceType,
                 mimeType = mimeType,
                 fileSizeFormatted = formatFileSize(fileSize),
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                remarks = remarks
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -137,7 +140,8 @@ object AttachmentStorageHelper {
         context: Context,
         cameraFile: File,
         contentUri: Uri,
-        fieldName: String
+        fieldName: String,
+        remarks: String = ""
     ): PointAttachment {
         val fileSize = cameraFile.length()
         return PointAttachment(
@@ -149,7 +153,8 @@ object AttachmentStorageHelper {
             sourceType = AttachmentSourceType.CAMERA,
             mimeType = "image/jpeg",
             fileSizeFormatted = formatFileSize(fileSize),
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            remarks = remarks
         )
     }
 

@@ -1,6 +1,17 @@
 {
   "version": 2,
   "cleanUrls": true,
+  "headers": [
+    {
+      "source": "/(.*)\\.apk",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ],
   "routes": [
     {
       "handle": "filesystem"

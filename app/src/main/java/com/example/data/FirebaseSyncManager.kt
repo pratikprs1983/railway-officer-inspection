@@ -6,6 +6,7 @@ import com.example.MyApplication
 import com.example.models.*
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
@@ -81,8 +82,6 @@ object FirebaseSyncManager {
 
         _syncStatus.value = "Connected to $currentProjectId"
         startRealtimeListeners()
-        // Proactively push existing local data so Firestore collections are immediately populated
-        syncAllToCloud()
     }
 
     private fun checkAndApplySavedConfig(context: Context) {
@@ -160,7 +159,6 @@ object FirebaseSyncManager {
 
             _syncStatus.value = "Connected to $projectId"
             startRealtimeListeners()
-            syncAllToCloud()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reinitialize Firebase: ${e.message}", e)
         }
@@ -329,10 +327,130 @@ object FirebaseSyncManager {
         db?.collection("inspection_types")?.document(typeId)?.delete()
     }
 
+    fun syncCategory(category: FormCategory) {
+        val data = hashMapOf(
+            "id" to category.id,
+            "inspectionTypeId" to category.inspectionTypeId,
+            "name" to category.name,
+            "displayOrder" to category.displayOrder,
+            "createdAt" to category.createdAt
+        )
+        db?.collection("form_categories")?.document(category.id)
+            ?.set(data, SetOptions.merge())
+    }
+
+    fun deleteCategory(categoryId: String) {
+        db?.collection("form_categories")?.document(categoryId)?.delete()
+    }
+
+    fun deleteSubcategoriesByCategoryId(categoryId: String) {
+        if (categoryId.isBlank()) return
+        db?.collection("form_subcategories")
+            ?.whereEqualTo("categoryId", categoryId)
+            ?.get()
+            ?.addOnSuccessListener { querySnapshot ->
+                for (doc in querySnapshot.documents) {
+                    doc.reference.delete()
+                }
+            }
+    }
+
+    fun deleteFieldsByCategoryId(categoryId: String) {
+        if (categoryId.isBlank()) return
+        db?.collection("inspection_fields")
+            ?.whereEqualTo("categoryId", categoryId)
+            ?.get()
+            ?.addOnSuccessListener { querySnapshot ->
+                for (doc in querySnapshot.documents) {
+                    doc.reference.delete()
+                }
+            }
+    }
+
+    fun deleteFieldsBySubcategory(subcategoryId: String, categoryId: String, subcategoryName: String) {
+        val collection = db?.collection("inspection_fields") ?: return
+        if (subcategoryId.isNotBlank()) {
+            collection.whereEqualTo("subcategoryId", subcategoryId).get()
+                .addOnSuccessListener { qs ->
+                    for (doc in qs.documents) doc.reference.delete()
+                }
+        }
+        if (categoryId.isNotBlank() && subcategoryName.isNotBlank()) {
+            collection.whereEqualTo("categoryId", categoryId)
+                .whereEqualTo("subcategoryName", subcategoryName)
+                .get()
+                .addOnSuccessListener { qs ->
+                    for (doc in qs.documents) doc.reference.delete()
+                }
+        }
+    }
+
+    fun purgeOrphanedFormDataInFirestore(typeId: String) {
+        val currentDb = db ?: return
+        if (typeId.isBlank()) return
+        currentDb.collection("form_categories")
+            .whereEqualTo("inspectionTypeId", typeId)
+            .get()
+            .addOnSuccessListener { catDocs ->
+                val survivingCatIds = catDocs.documents.map { it.id }.toSet()
+                
+                currentDb.collection("form_subcategories")
+                    .whereEqualTo("inspectionTypeId", typeId)
+                    .get()
+                    .addOnSuccessListener { subDocs ->
+                        val survivingSubIds = mutableSetOf<String>()
+                        for (subDoc in subDocs.documents) {
+                            val catId = subDoc.getString("categoryId") ?: ""
+                            if (catId.isNotBlank() && catId !in survivingCatIds) {
+                                subDoc.reference.delete()
+                            } else {
+                                survivingSubIds.add(subDoc.id)
+                            }
+                        }
+                        
+                        currentDb.collection("inspection_fields")
+                            .whereEqualTo("inspectionTypeId", typeId)
+                            .get()
+                            .addOnSuccessListener { fieldDocs ->
+                                for (fieldDoc in fieldDocs.documents) {
+                                    val catId = fieldDoc.getString("categoryId") ?: ""
+                                    val subId = fieldDoc.getString("subcategoryId") ?: ""
+                                    val orphanCat = catId.isNotBlank() && catId !in survivingCatIds
+                                    val orphanSub = subId.isNotBlank() && subId !in survivingSubIds
+                                    if (orphanCat || orphanSub) {
+                                        fieldDoc.reference.delete()
+                                    }
+                                }
+                            }
+                    }
+            }
+    }
+
+    fun syncSubcategory(subcategory: FormSubcategory) {
+        val data = hashMapOf(
+            "id" to subcategory.id,
+            "categoryId" to subcategory.categoryId,
+            "inspectionTypeId" to subcategory.inspectionTypeId,
+            "name" to subcategory.name,
+            "displayOrder" to subcategory.displayOrder,
+            "createdAt" to subcategory.createdAt
+        )
+        db?.collection("form_subcategories")?.document(subcategory.id)
+            ?.set(data, SetOptions.merge())
+    }
+
+    fun deleteSubcategory(subcategoryId: String) {
+        db?.collection("form_subcategories")?.document(subcategoryId)?.delete()
+    }
+
     fun syncInspectionField(field: InspectionField) {
         val data = hashMapOf(
             "id" to field.id,
             "inspectionTypeId" to field.inspectionTypeId,
+            "categoryId" to field.categoryId,
+            "categoryName" to field.categoryName,
+            "subcategoryId" to field.subcategoryId,
+            "subcategoryName" to field.subcategoryName,
             "label" to field.label,
             "fieldName" to field.fieldName,
             "fieldType" to field.fieldType.name,
@@ -377,7 +495,8 @@ object FirebaseSyncManager {
             "createdAt" to inspection.createdAt,
             "updatedAt" to inspection.updatedAt,
             "startedAt" to inspection.startedAt,
-            "completedAt" to inspection.completedAt
+            "completedAt" to inspection.completedAt,
+            "verifiedLocationName" to inspection.verifiedLocationName
         )
         db?.collection("inspections")?.document(inspection.id)
             ?.set(data, SetOptions.merge())
@@ -385,8 +504,75 @@ object FirebaseSyncManager {
             ?.addOnFailureListener { e -> Log.e(TAG, "Error syncing inspection: ${e.message}") }
     }
 
-    fun deleteInspection(inspectionId: String) {
-        db?.collection("inspections")?.document(inspectionId)?.delete()
+    fun deleteInspection(inspectionId: String, inspectionNumber: String = "") {
+        val currentDb = db ?: return
+        // 1. Delete inspection document by ID
+        currentDb.collection("inspections").document(inspectionId).delete()
+            .addOnSuccessListener { Log.d(TAG, "Inspection $inspectionId deleted from Firestore") }
+            .addOnFailureListener { e -> Log.e(TAG, "Error deleting inspection from Firestore: ${e.message}") }
+
+        // Also delete inspection document by inspectionNumber if document id is different
+        if (inspectionNumber.isNotBlank()) {
+            currentDb.collection("inspections")
+                .whereEqualTo("inspectionNumber", inspectionNumber)
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    for (doc in snapshot.documents) {
+                        doc.reference.delete()
+                    }
+                }
+        }
+
+        // 2. Cascade delete all compliances associated with this inspection from Firestore
+        currentDb.collection("compliances")
+            .whereEqualTo("inspectionId", inspectionId)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                for (doc in snapshot.documents) {
+                    doc.reference.delete()
+                    Log.d(TAG, "Deleted compliance ${doc.id} for inspection $inspectionId from Firestore")
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error finding compliances by inspectionId for deletion: ${e.message}")
+            }
+
+        // Also delete by inspectionNumber if available to ensure total cleanup
+        if (inspectionNumber.isNotBlank()) {
+            currentDb.collection("compliances")
+                .whereEqualTo("inspectionNumber", inspectionNumber)
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    for (doc in snapshot.documents) {
+                        doc.reference.delete()
+                        Log.d(TAG, "Deleted compliance ${doc.id} by inspectionNumber $inspectionNumber from Firestore")
+                    }
+                }
+        }
+
+        // 3. Cascade delete notifications for this inspection
+        currentDb.collection("notifications")
+            .whereEqualTo("inspectionId", inspectionId)
+            .get()
+            .addOnSuccessListener { snapshot ->
+                for (doc in snapshot.documents) {
+                    doc.reference.delete()
+                }
+            }
+        if (inspectionNumber.isNotBlank()) {
+            currentDb.collection("notifications")
+                .whereEqualTo("inspectionNumber", inspectionNumber)
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    for (doc in snapshot.documents) {
+                        doc.reference.delete()
+                    }
+                }
+        }
+    }
+
+    fun purgeOrphanedCompliancesInCloud() {
+        // Compliances are safety records assigned to officers and must never be automatically purged or deleted from Firestore.
     }
 
     fun syncCompliance(compliance: Compliance) {
@@ -473,9 +659,15 @@ object FirebaseSyncManager {
                 val gates = dbInstance.masterDataDao().getAllLCGatesList()
                 gates.forEach { syncLCGate(it) }
 
-                // 3. Inspection Types & Fields
+                // 3. Inspection Types, Categories, Subcategories & Fields
                 val inspectionTypes = dbInstance.inspectionDao().getAllInspectionTypesList()
                 inspectionTypes.forEach { syncInspectionType(it) }
+
+                val categories = dbInstance.inspectionDao().getAllCategoriesList()
+                categories.forEach { syncCategory(it) }
+
+                val subcategories = dbInstance.inspectionDao().getAllSubcategoriesList()
+                subcategories.forEach { syncSubcategory(it) }
 
                 val fields = dbInstance.inspectionDao().getAllInspectionFieldsList()
                 fields.forEach { syncInspectionField(it) }
@@ -576,17 +768,104 @@ object FirebaseSyncManager {
             }
         }
 
+        // Listen for form categories
+        currentDb.collection("form_categories").addSnapshotListener { snapshots, error ->
+            if (error != null) return@addSnapshotListener
+            snapshots?.let { querySnapshot ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    val remoteCategoryIds = querySnapshot.documents.map { it.id }.toSet()
+                    val localCats = dbInstance.inspectionDao().getAllCategoriesList()
+                    for (local in localCats) {
+                        if (local.id !in remoteCategoryIds) {
+                            dbInstance.inspectionDao().deleteCategoryById(local.id)
+                        }
+                    }
+                    for (change in querySnapshot.documentChanges) {
+                        if (change.type == com.google.firebase.firestore.DocumentChange.Type.REMOVED) {
+                            dbInstance.inspectionDao().deleteCategoryById(change.document.id)
+                        }
+                    }
+                    for (doc in querySnapshot.documents) {
+                        try {
+                            val category = FormCategory(
+                                id = doc.getString("id") ?: doc.id,
+                                inspectionTypeId = doc.getString("inspectionTypeId") ?: "",
+                                name = doc.getString("name") ?: "",
+                                displayOrder = doc.getLong("displayOrder")?.toInt() ?: 0,
+                                createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+                            )
+                            dbInstance.inspectionDao().insertCategory(category)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing form category doc ${doc.id}: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Listen for form subcategories
+        currentDb.collection("form_subcategories").addSnapshotListener { snapshots, error ->
+            if (error != null) return@addSnapshotListener
+            snapshots?.let { querySnapshot ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    val remoteSubIds = querySnapshot.documents.map { it.id }.toSet()
+                    val localSubs = dbInstance.inspectionDao().getAllSubcategoriesList()
+                    for (local in localSubs) {
+                        if (local.id !in remoteSubIds) {
+                            dbInstance.inspectionDao().deleteSubcategoryById(local.id)
+                        }
+                    }
+                    for (change in querySnapshot.documentChanges) {
+                        if (change.type == com.google.firebase.firestore.DocumentChange.Type.REMOVED) {
+                            dbInstance.inspectionDao().deleteSubcategoryById(change.document.id)
+                        }
+                    }
+                    for (doc in querySnapshot.documents) {
+                        try {
+                            val subcategory = FormSubcategory(
+                                id = doc.getString("id") ?: doc.id,
+                                categoryId = doc.getString("categoryId") ?: "",
+                                inspectionTypeId = doc.getString("inspectionTypeId") ?: "",
+                                name = doc.getString("name") ?: "",
+                                displayOrder = doc.getLong("displayOrder")?.toInt() ?: 0,
+                                createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+                            )
+                            dbInstance.inspectionDao().insertSubcategory(subcategory)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing form subcategory doc ${doc.id}: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
+
         // Listen for inspection fields
         currentDb.collection("inspection_fields").addSnapshotListener { snapshots, error ->
             if (error != null) return@addSnapshotListener
             snapshots?.let { querySnapshot ->
                 CoroutineScope(Dispatchers.IO).launch {
+                    val remoteFieldIds = querySnapshot.documents.map { it.id }.toSet()
+                    val localFields = dbInstance.inspectionDao().getAllInspectionFieldsList()
+                    for (local in localFields) {
+                        if (local.id !in remoteFieldIds) {
+                            dbInstance.inspectionDao().deleteFieldById(local.id)
+                        }
+                    }
+                    for (change in querySnapshot.documentChanges) {
+                        if (change.type == com.google.firebase.firestore.DocumentChange.Type.REMOVED) {
+                            dbInstance.inspectionDao().deleteFieldById(change.document.id)
+                        }
+                    }
                     for (doc in querySnapshot.documents) {
                         try {
                             val fieldTypeStr = doc.getString("fieldType") ?: FieldType.TEXT.name
                             val field = InspectionField(
                                 id = doc.getString("id") ?: doc.id,
                                 inspectionTypeId = doc.getString("inspectionTypeId") ?: "",
+                                categoryId = doc.getString("categoryId") ?: "",
+                                categoryName = doc.getString("categoryName") ?: "",
+                                subcategoryId = doc.getString("subcategoryId") ?: "",
+                                subcategoryName = doc.getString("subcategoryName") ?: "",
                                 label = doc.getString("label") ?: "",
                                 fieldName = doc.getString("fieldName") ?: "",
                                 fieldType = try { FieldType.valueOf(fieldTypeStr) } catch (e: Exception) { FieldType.TEXT },
@@ -613,6 +892,33 @@ object FirebaseSyncManager {
             if (error != null) return@addSnapshotListener
             snapshots?.let { querySnapshot ->
                 CoroutineScope(Dispatchers.IO).launch {
+                    val remoteDocIds = querySnapshot.documents.map { it.id }.toSet()
+                    val remoteDocNumbers = querySnapshot.documents.mapNotNull { it.getString("inspectionNumber") }.filter { it.isNotBlank() }.toSet()
+
+                    // 1. Reconcile deletions: remove any local inspection in Room that was deleted in Firestore
+                    val localInspections = dbInstance.inspectionDao().getAllInspectionsList()
+                    for (local in localInspections) {
+                        val isPresentRemotely = local.id in remoteDocIds ||
+                                (local.inspectionNumber.isNotBlank() && local.inspectionNumber in remoteDocNumbers)
+                        if (!isPresentRemotely) {
+                            Log.d(TAG, "Inspection ${local.id} (${local.inspectionNumber}) was deleted in Firestore. Removing from local Room.")
+                            dbInstance.inspectionDao().deleteInspectionById(local.id)
+                            dbInstance.notificationDao().deleteNotificationsForInspection(local.id, local.inspectionNumber)
+                        }
+                    }
+
+                    // Also process explicit REMOVED changes
+                    for (change in querySnapshot.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            val removedId = change.document.id
+                            val inspNum = change.document.getString("inspectionNumber") ?: ""
+                            Log.d(TAG, "Inspection $removedId was removed from Firestore. Deleting from local Room.")
+                            dbInstance.inspectionDao().deleteInspectionById(removedId)
+                            dbInstance.notificationDao().deleteNotificationsForInspection(removedId, inspNum)
+                        }
+                    }
+
+                    // 2. Handle added/updated inspections
                     for (doc in querySnapshot.documents) {
                         try {
                             val statusStr = doc.getString("status") ?: InspectionStatus.ASSIGNED.name
@@ -639,13 +945,15 @@ object FirebaseSyncManager {
                                 createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis(),
                                 updatedAt = doc.getLong("updatedAt") ?: System.currentTimeMillis(),
                                 startedAt = doc.getLong("startedAt"),
-                                completedAt = doc.getLong("completedAt")
+                                completedAt = doc.getLong("completedAt"),
+                                verifiedLocationName = doc.getString("verifiedLocationName") ?: ""
                             )
                             dbInstance.inspectionDao().insertInspection(inspection)
                         } catch (e: Exception) {
                             Log.e(TAG, "Error parsing inspection doc ${doc.id}: ${e.message}")
                         }
                     }
+
                 }
             }
         }
@@ -655,14 +963,27 @@ object FirebaseSyncManager {
             if (error != null) return@addSnapshotListener
             snapshots?.let { querySnapshot ->
                 CoroutineScope(Dispatchers.IO).launch {
+                    // Handle explicit REMOVED changes from cloud
+                    for (change in querySnapshot.documentChanges) {
+                        if (change.type == DocumentChange.Type.REMOVED) {
+                            val removedId = change.document.id
+                            Log.d(TAG, "Compliance $removedId was removed from Firestore. Deleting from local Room.")
+                            dbInstance.complianceDao().deleteComplianceById(removedId)
+                        }
+                    }
+
+                    // Handle added/updated compliances - insert all compliances received from Firestore
                     for (doc in querySnapshot.documents) {
                         try {
+                            val inspId = doc.getString("inspectionId") ?: ""
+                            val inspNum = doc.getString("inspectionNumber") ?: ""
+
                             val severityStr = doc.getString("severity") ?: ComplianceSeverity.MAJOR.name
                             val statusStr = doc.getString("status") ?: ComplianceStatus.OPEN.name
                             val compliance = Compliance(
                                 id = doc.getString("id") ?: doc.id,
-                                inspectionId = doc.getString("inspectionId") ?: "",
-                                inspectionNumber = doc.getString("inspectionNumber") ?: "",
+                                inspectionId = inspId,
+                                inspectionNumber = inspNum,
                                 inspectionPointTitle = doc.getString("inspectionPointTitle") ?: "",
                                 title = doc.getString("title") ?: "",
                                 description = doc.getString("description") ?: "",

@@ -117,14 +117,24 @@ class DashboardViewModel : ViewModel() {
             }
         }
 
-        // Compliances observation and dual-role separation
+        // Compliances observation and dual-role separation: compile ALL compliances for that officer
         viewModelScope.launch {
-            combine(complianceRepo.getAllCompliances(), SessionManager.currentUser) { list, user ->
+            combine(complianceRepo.getAllCompliances(), SessionManager.currentUser, repo.getInspections()) { list, user, allInsps ->
                 _allCompliances.value = list
                 if (user != null) {
+                    val userInspIds = allInsps.filter { SessionManager.isInspectionAssignedToUser(it, user) }.map { it.id }.toSet()
+                    val userInspNumbers = allInsps.filter { SessionManager.isInspectionAssignedToUser(it, user) }
+                        .map { it.inspectionNumber }
+                        .filter { it.isNotBlank() }
+                        .toSet()
+
                     list.filter { comp ->
                         comp.assignedOfficerId == user.uid ||
-                        (comp.assignedOfficerName.isNotBlank() && comp.assignedOfficerName.equals(user.name, ignoreCase = true))
+                        (comp.assignedOfficerName.isNotBlank() && comp.assignedOfficerName.equals(user.name, ignoreCase = true)) ||
+                        comp.inspectingOfficerId == user.uid ||
+                        (comp.inspectingOfficerName.isNotBlank() && comp.inspectingOfficerName.equals(user.name, ignoreCase = true)) ||
+                        userInspIds.contains(comp.inspectionId) ||
+                        userInspNumbers.contains(comp.inspectionNumber)
                     }
                 } else {
                     emptyList()
@@ -255,6 +265,12 @@ class DashboardViewModel : ViewModel() {
         )
         complianceRepo.saveCompliance(updated) { success ->
             onComplete(success)
+        }
+    }
+
+    fun deleteInspection(inspection: Inspection, onComplete: ((Boolean) -> Unit)? = null) {
+        repo.deleteInspection(inspection) { success ->
+            onComplete?.invoke(success)
         }
     }
 }

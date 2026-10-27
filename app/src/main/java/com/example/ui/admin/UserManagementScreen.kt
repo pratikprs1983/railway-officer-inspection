@@ -1,11 +1,14 @@
 package com.example.ui.admin
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -49,6 +52,8 @@ fun UserManagementScreen(
     var showFirebaseConfigDialog by remember { mutableStateOf(false) }
     var editingUser by remember { mutableStateOf<User?>(null) }
     var userToDelete by remember { mutableStateOf<User?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedRoleFilter by remember { mutableStateOf<Role?>(null) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -175,6 +180,69 @@ fun UserManagementScreen(
                 }
             }
 
+            val filteredUsers = remember(users, searchQuery, selectedRoleFilter) {
+                users.filter { user ->
+                    (selectedRoleFilter == null || user.role == selectedRoleFilter) &&
+                    (searchQuery.isBlank() ||
+                     user.name.contains(searchQuery, ignoreCase = true) ||
+                     user.designation.contains(searchQuery, ignoreCase = true) ||
+                     user.departmentName.contains(searchQuery, ignoreCase = true) ||
+                     user.division.contains(searchQuery, ignoreCase = true) ||
+                     user.office.contains(searchQuery, ignoreCase = true) ||
+                     user.email.contains(searchQuery, ignoreCase = true) ||
+                     user.hrmsId.contains(searchQuery, ignoreCase = true) ||
+                     user.role.name.replace("_", " ").contains(searchQuery, ignoreCase = true))
+                }
+            }
+
+            // Search Bar & Role Filter Chips
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search officer, role, designation, division...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear Search")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Role Filter Chips Row (Horizontally scrollable)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = selectedRoleFilter == null,
+                        onClick = { selectedRoleFilter = null },
+                        label = { Text("All Roles (${users.size})", maxLines = 1, softWrap = false) }
+                    )
+                    Role.values().forEach { role ->
+                        val count = users.count { it.role == role }
+                        FilterChip(
+                            selected = selectedRoleFilter == role,
+                            onClick = { selectedRoleFilter = if (selectedRoleFilter == role) null else role },
+                            label = { Text("${role.name.replace("_", " ")} ($count)", maxLines = 1, softWrap = false) }
+                        )
+                    }
+                }
+            }
+
             Box(modifier = Modifier.fillMaxSize().weight(1f)) {
                 if (isLoading && users.isEmpty()) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -184,6 +252,23 @@ fun UserManagementScreen(
                         modifier = Modifier.align(Alignment.Center),
                         style = MaterialTheme.typography.bodyLarge
                     )
+                } else if (filteredUsers.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.PersonSearch, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.outline)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("No officers match \"$searchQuery\"", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(onClick = { searchQuery = ""; selectedRoleFilter = null }) {
+                                Text("Clear Search")
+                            }
+                        }
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier
@@ -198,7 +283,7 @@ fun UserManagementScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "Registered Officers & Admins (${users.size})",
+                                    "Registered Officers & Admins (${filteredUsers.size}${if (filteredUsers.size != users.size) " of ${users.size}" else ""})",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.primary
@@ -219,7 +304,7 @@ fun UserManagementScreen(
                                 }
                             }
                         }
-                        items(users) { user ->
+                        items(filteredUsers, key = { it.uid }) { user ->
                             UserCard(
                                 user = user,
                                 onEdit = {
@@ -550,14 +635,18 @@ fun FirebaseConfigDialog(
                 }
 
                 // App Identifiers for Firebase Console
-                Text("App Registration Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("App Registration Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF0F172A)
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Target Project ID:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        Text("Target Project ID:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -575,15 +664,15 @@ fun FirebaseConfigDialog(
                             }
                         }
 
-                        Divider()
+                        Divider(color = Color(0xFFE2E8F0))
 
-                        Text("Android Package Name:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        Text("Android Package Name:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(FirebaseSyncManager.APP_PACKAGE_NAME, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                            Text(FirebaseSyncManager.APP_PACKAGE_NAME, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = Color(0xFF0F172A))
                             IconButton(
                                 onClick = {
                                     clipboardManager.setText(AnnotatedString(FirebaseSyncManager.APP_PACKAGE_NAME))
@@ -595,15 +684,15 @@ fun FirebaseConfigDialog(
                             }
                         }
 
-                        Divider()
+                        Divider(color = Color(0xFFE2E8F0))
 
-                        Text("Debug Keystore SHA-1:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                        Text("Debug Keystore SHA-1:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(FirebaseSyncManager.DEBUG_SHA1, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                            Text(FirebaseSyncManager.DEBUG_SHA1, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = Color(0xFF0F172A))
                             IconButton(
                                 onClick = {
                                     clipboardManager.setText(AnnotatedString(FirebaseSyncManager.DEBUG_SHA1))

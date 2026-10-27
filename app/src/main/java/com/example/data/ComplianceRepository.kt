@@ -79,4 +79,12 @@ class ComplianceRepository {
             }
         }
     }
+
+    fun purgeOrphanedCompliances(onComplete: ((Int) -> Unit)? = null) {
+        CoroutineScope(Dispatchers.IO).launch {
+            // Compliances are safety records assigned to officers and must never be automatically purged or deleted.
+            // Only user-initiated or explicit compliance deletions are allowed.
+            withContext(Dispatchers.Main) { onComplete?.invoke(0) }
+        }
+    }
 }

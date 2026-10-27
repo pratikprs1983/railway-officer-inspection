@@ -35,5 +35,6 @@ data class Inspection(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val startedAt: Long? = null,
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    val verifiedLocationName: String = ""
 )

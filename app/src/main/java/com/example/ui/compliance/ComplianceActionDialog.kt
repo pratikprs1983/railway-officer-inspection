@@ -36,7 +36,6 @@ fun ComplianceActionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(decorFitsSystemWindows = false),
         icon = {
             Icon(
                 Icons.Default.AssignmentTurnedIn,

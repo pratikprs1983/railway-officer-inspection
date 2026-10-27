@@ -5,8 +5,10 @@ import android.location.Location
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -37,6 +40,7 @@ import com.example.ui.admin.LocationCategory
 import com.example.ui.admin.detectLocationCategory
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.example.util.LocationHelper
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -73,6 +77,8 @@ fun SpotInspectionDialog(
 
     var isSelfInspection by remember { mutableStateOf(false) } // false = Spot Inspection, true = Self Inspection
     var selectedType by remember { mutableStateOf<InspectionType?>(types.firstOrNull()) }
+    var isOtherTypeSelected by remember { mutableStateOf(false) }
+    var customTypeName by remember { mutableStateOf("") }
     var typeExpanded by remember { mutableStateOf(false) }
     var typeSearchQuery by remember { mutableStateOf("") }
 
@@ -96,6 +102,18 @@ fun SpotInspectionDialog(
     // Real-time GPS Location
     var isFetchingLocation by remember { mutableStateOf(false) }
     var locationCaptured by remember { mutableStateOf<Location?>(null) }
+    var capturedLocationAddress by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(locationCaptured) {
+        val loc = locationCaptured
+        if (loc != null) {
+            val addr = LocationHelper.getAddressFromLocation(context, loc.latitude, loc.longitude)
+            if (!addr.isNullOrBlank()) {
+                capturedLocationAddress = addr
+            }
+        }
+    }
+
     val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -136,26 +154,29 @@ fun SpotInspectionDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        onDismissRequest = {
+            typeExpanded = false
+            locationExpanded = false
+            onDismiss()
+        },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding(),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Card(
                 modifier = Modifier
-                    .fillMaxWidth(0.95f)
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp)
                     .heightIn(max = 780.dp)
-                    .padding(16.dp),
+                    .padding(horizontal = 12.dp, vertical = 16.dp),
                 shape = MaterialTheme.shapes.large,
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(22.dp)
+                        .padding(16.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -193,7 +214,11 @@ fun SpotInspectionDialog(
                                 )
                             }
                         }
-                        IconButton(onClick = onDismiss) {
+                        IconButton(onClick = {
+                            typeExpanded = false
+                            locationExpanded = false
+                            onDismiss()
+                        }) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
                     }
@@ -260,7 +285,9 @@ fun SpotInspectionDialog(
                             onExpandedChange = { typeExpanded = !typeExpanded }
                         ) {
                             OutlinedTextField(
-                                value = selectedType?.name ?: "Select Inspection Type",
+                                value = if (isOtherTypeSelected) {
+                                    if (customTypeName.isNotBlank()) customTypeName else "Other (Custom Type)"
+                                } else (selectedType?.name ?: "Select Inspection Type"),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Choose Inspection Type *") },
@@ -269,7 +296,11 @@ fun SpotInspectionDialog(
                                     .fillMaxWidth(),
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Assignment, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        if (isOtherTypeSelected) Icons.Default.EditNote else Icons.Default.Assignment,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             )
                             ExposedDropdownMenu(
@@ -300,6 +331,39 @@ fun SpotInspectionDialog(
                                 )
                                 HorizontalDivider()
 
+                                // Option for custom "Other" inspection type
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.AddCircleOutline,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    "Other (Specify custom type)",
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    "Enter any other custom inspection type",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        isOtherTypeSelected = true
+                                        typeExpanded = false
+                                        typeSearchQuery = ""
+                                    }
+                                )
+                                HorizontalDivider()
+
                                 val filteredTypes = remember(types, typeSearchQuery) {
                                     if (typeSearchQuery.isBlank()) types
                                     else {
@@ -312,7 +376,7 @@ fun SpotInspectionDialog(
 
                                 if (filteredTypes.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No matching inspection types") },
+                                        text = { Text("No matching predefined types. Use 'Other' above.") },
                                         onClick = {}
                                     )
                                 } else {
@@ -328,6 +392,7 @@ fun SpotInspectionDialog(
                                             },
                                             onClick = {
                                                 selectedType = type
+                                                isOtherTypeSelected = false
                                                 activeCategory = detectLocationCategory(type.name)
                                                 typeExpanded = false
                                                 typeSearchQuery = ""
@@ -337,9 +402,37 @@ fun SpotInspectionDialog(
                                 }
                             }
                         }
+
+                        // Custom Text Field when "Other" inspection type is selected
+                        AnimatedVisibility(
+                            visible = isOtherTypeSelected,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            OutlinedTextField(
+                                value = customTypeName,
+                                onValueChange = { customTypeName = it },
+                                label = { Text("Specify Inspection Type *") },
+                                placeholder = { Text("e.g. Safety Audit, P-Way Yard Check, Night Trial...") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.EditNote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                },
+                                trailingIcon = {
+                                    if (customTypeName.isNotEmpty()) {
+                                        IconButton(onClick = { customTypeName = "" }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                        }
+                                    }
+                                },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                            )
+                        }
                     }
 
-                    // 2. Date Field (Default Today)
+                    // 2. Date Field (Default Today) - Dynamically responsive, prevents text squishing
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
@@ -352,7 +445,10 @@ fun SpotInspectionDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Icon(
                                     Icons.Default.CalendarToday,
                                     contentDescription = null,
@@ -362,24 +458,30 @@ fun SpotInspectionDialog(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        "Inspection Date (Default Today)",
+                                        "Inspection Date",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         dateFormat.format(Date(executionDate)),
                                         style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
                                     )
                                 }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 val isToday = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date(executionDate)) ==
                                         SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())
                                 FilterChip(
                                     selected = isToday,
                                     onClick = { executionDate = System.currentTimeMillis() },
-                                    label = { Text("Today", style = MaterialTheme.typography.labelSmall) }
+                                    label = { Text("Today", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
                                 )
                                 IconButton(
                                     onClick = { showDatePicker = true },
@@ -425,25 +527,31 @@ fun SpotInspectionDialog(
                             }
                         }
 
-                        // Category tabs: Stations, Sections, LC Gates
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Category tabs: Stations, Sections, LC Gates (Horizontal scrollable so chips never get squished)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             FilterChip(
                                 selected = activeCategory == LocationCategory.STATION,
                                 onClick = { activeCategory = LocationCategory.STATION },
                                 leadingIcon = { Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                                label = { Text("Station (${stations.size})", style = MaterialTheme.typography.labelSmall) }
+                                label = { Text("Station (${stations.size})", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
                             )
                             FilterChip(
                                 selected = activeCategory == LocationCategory.SECTION,
                                 onClick = { activeCategory = LocationCategory.SECTION },
                                 leadingIcon = { Icon(Icons.Default.Train, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                                label = { Text("Section (${sections.size})", style = MaterialTheme.typography.labelSmall) }
+                                label = { Text("Section (${sections.size})", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
                             )
                             FilterChip(
                                 selected = activeCategory == LocationCategory.LC_GATE,
                                 onClick = { activeCategory = LocationCategory.LC_GATE },
                                 leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                                label = { Text("LC Gate (${lcGates.size})", style = MaterialTheme.typography.labelSmall) }
+                                label = { Text("LC Gate (${lcGates.size})", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) }
                             )
                         }
 
@@ -855,12 +963,22 @@ fun SpotInspectionDialog(
                                     fontWeight = FontWeight.Bold
                                 )
                                 if (isFetchingLocation) {
-                                    Text("Acquiring GPS coordinates...", style = MaterialTheme.typography.bodySmall)
+                                    Text("Acquiring GPS coordinates & location name...", style = MaterialTheme.typography.bodySmall)
                                 } else if (locationCaptured != null) {
+                                    if (!capturedLocationAddress.isNullOrBlank()) {
+                                        Text(
+                                            capturedLocationAddress!!,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                    }
                                     Text(
                                         "Lat: ${String.format(Locale.US, "%.5f", locationCaptured!!.latitude)}, Lng: ${String.format(Locale.US, "%.5f", locationCaptured!!.longitude)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
                                         "Accuracy: ±${locationCaptured!!.accuracy}m",
@@ -891,6 +1009,69 @@ fun SpotInspectionDialog(
                                 }
                             }
                         }
+
+                        // Clickable Google Maps Action when location captured
+                        if (locationCaptured != null) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        LocationHelper.openGoogleMaps(
+                                            context = context,
+                                            latitude = locationCaptured!!.latitude,
+                                            longitude = locationCaptured!!.longitude,
+                                            label = capturedLocationAddress ?: "Spot Inspection GPS Location"
+                                        )
+                                    },
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(
+                                            Icons.Default.Map,
+                                            contentDescription = "Map",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Click to View Position on Google Maps",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.Default.OpenInNew,
+                                        contentDescription = "Open",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+
+                            // Quick action to use this address as spot details if blank
+                            if (!capturedLocationAddress.isNullOrBlank() && specificSpotDetail.isBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                TextButton(
+                                    onClick = { specificSpotDetail = capturedLocationAddress!! },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Set as Spot Detail", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     }
 
                     // 6. Remarks / Reason Field (Optional)
@@ -910,25 +1091,36 @@ fun SpotInspectionDialog(
                         } else it
                     }
 
-                    val canSave = selectedType != null && resolvedLocation.isNotBlank()
+                    val effectiveType = if (isOtherTypeSelected) {
+                        InspectionType(
+                            id = UUID.randomUUID().toString(),
+                            name = customTypeName.trim().ifEmpty { "Other Inspection" },
+                            description = "Custom officer spot inspection"
+                        )
+                    } else selectedType
+
+                    val canSave = (if (isOtherTypeSelected) customTypeName.isNotBlank() else selectedType != null) && resolvedLocation.isNotBlank()
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Action Buttons: Save to List vs Start Now
+                    // Action Buttons: Cancel, Save to List, Start Now (Proportionately weighted so no button wraps or gets squished)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = onDismiss) {
-                            Text("Cancel")
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(0.8f),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                        ) {
+                            Text("Cancel", maxLines = 1, softWrap = false)
                         }
-                        Spacer(modifier = Modifier.width(6.dp))
                         OutlinedButton(
                             onClick = {
-                                if (canSave) {
+                                if (canSave && effectiveType != null) {
                                     onSaveInspection(
-                                        selectedType!!,
+                                        effectiveType,
                                         resolvedLocation,
                                         selectedLocationId,
                                         isSelfInspection,
@@ -942,16 +1134,17 @@ fun SpotInspectionDialog(
                                     )
                                 }
                             },
-                            enabled = canSave
+                            enabled = canSave,
+                            modifier = Modifier.weight(1.1f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
                         ) {
-                            Text("Save to List")
+                            Text("Save to List", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                         }
-                        Spacer(modifier = Modifier.width(6.dp))
                         Button(
                             onClick = {
-                                if (canSave) {
+                                if (canSave && effectiveType != null) {
                                     onSaveInspection(
-                                        selectedType!!,
+                                        effectiveType,
                                         resolvedLocation,
                                         selectedLocationId,
                                         isSelfInspection,
@@ -966,13 +1159,15 @@ fun SpotInspectionDialog(
                                 }
                             },
                             enabled = canSave,
+                            modifier = Modifier.weight(1.2f),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isSelfInspection) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
                             )
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Start Now")
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("Start Now", maxLines = 1, softWrap = false, style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }

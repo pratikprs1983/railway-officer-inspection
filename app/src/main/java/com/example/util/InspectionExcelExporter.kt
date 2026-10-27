@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.example.models.Compliance
 import com.example.models.Inspection
+import com.example.ui.dashboard.InspectionComplianceGroup
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -24,10 +26,12 @@ object InspectionExcelExporter {
     /**
      * Exports the given inspections to an Excel-compatible CSV file with UTF-8 BOM.
      * Inspections are sorted date-wise (latest first or chronological).
+     * Includes the number of compliances assigned to officers for each inspection.
      */
     fun exportInspectionsToExcel(
         context: Context,
         inspections: List<Inspection>,
+        compliances: List<Compliance> = emptyList(),
         ascendingDate: Boolean = false
     ): File? {
         if (inspections.isEmpty()) {
@@ -65,6 +69,8 @@ object InspectionExcelExporter {
                         "Assigned Officer",
                         "Location",
                         "Status",
+                        "No. of Compliances Assigned to Officer",
+                        "Compliance Details & Action Officers",
                         "Scheduled Date",
                         "Execution Date",
                         "Started At",
@@ -102,6 +108,18 @@ object InspectionExcelExporter {
                             else -> "Assigned Inspection"
                         }
 
+                        val matchingCompliances = compliances.filter { c ->
+                            (c.inspectionId.isNotBlank() && c.inspectionId == insp.id) ||
+                            (c.inspectionNumber.isNotBlank() && c.inspectionNumber.equals(insp.inspectionNumber, ignoreCase = true))
+                        }
+                        val compCountStr = matchingCompliances.size.toString()
+                        val compDetailsStr = if (matchingCompliances.isNotEmpty()) {
+                            matchingCompliances.joinToString("; ") { c ->
+                                val officer = if (c.assignedOfficerName.isNotBlank()) " (Officer: ${c.assignedOfficerName})" else ""
+                                "${c.title.ifBlank { c.inspectionPointTitle }} [${c.status.name}$officer]"
+                            }
+                        } else "0 (No compliances)"
+
                         val selfieVerifiedStr = if (insp.selfieURL.isNotBlank()) "YES (Verified)" else "NO"
                         val latStr = insp.startLatitude?.toString() ?: "N/A"
                         val lngStr = insp.startLongitude?.toString() ?: "N/A"
@@ -118,6 +136,8 @@ object InspectionExcelExporter {
                             insp.assignedOfficerName.ifBlank { "Unassigned" },
                             insp.locationName.ifBlank { "TBD" },
                             insp.status.name.replace("_", " "),
+                            compCountStr,
+                            compDetailsStr,
                             scheduledStr,
                             executionStr,
                             startedStr,
@@ -205,6 +225,142 @@ object InspectionExcelExporter {
      */
     fun openOrShareExcelFile(context: Context, file: File) {
         shareExcelFile(context, file)
+    }
+
+    /**
+     * Exports compliances belonging to a single inspection compliance group to an Excel CSV document.
+     */
+    fun exportSingleInspectionComplianceToExcel(
+        context: Context,
+        group: InspectionComplianceGroup
+    ): File? {
+        val sanitizedNumber = group.inspectionNumber.replace("[^a-zA-Z0-9_-]".toRegex(), "_")
+        return exportCompliancesToExcel(
+            context = context,
+            groups = listOf(group),
+            reportTitle = "Compliance_Register_${sanitizedNumber}"
+        )
+    }
+
+    /**
+     * Exports a list of InspectionComplianceGroups to an Excel-compatible CSV file with UTF-8 BOM.
+     * Includes all inspection details, compliance points, severity, target dates, and statuses.
+     */
+    fun exportCompliancesToExcel(
+        context: Context,
+        groups: List<InspectionComplianceGroup>,
+        reportTitle: String = "Inspection_Compliances_Report"
+    ): File? {
+        if (groups.isEmpty()) {
+            Toast.makeText(context, "No compliances to export", Toast.LENGTH_SHORT).show()
+            return null
+        }
+
+        return try {
+            val fileName = "${reportTitle.replace("[^a-zA-Z0-9_-]".toRegex(), "_")}_${fileTimestampFormat.format(Date())}.csv"
+            val exportDir = File(context.cacheDir, "exports")
+            if (!exportDir.exists()) {
+                exportDir.mkdirs()
+            }
+            val file = File(exportDir, fileName)
+
+            FileOutputStream(file).use { fos ->
+                // Write UTF-8 BOM for Microsoft Excel / Google Sheets compatibility
+                fos.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
+
+                OutputStreamWriter(fos, StandardCharsets.UTF_8).use { writer ->
+                    val headers = listOf(
+                        "S.No.",
+                        "Inspection Number",
+                        "Category",
+                        "Inspection Type",
+                        "Location / Station",
+                        "Inspecting Officer",
+                        "Inspection Date",
+                        "Inspection Status",
+                        "Point #",
+                        "Checklist / Action Point",
+                        "Non-Compliance Observation / Deficiency",
+                        "Severity",
+                        "Target Date",
+                        "Current Compliance Status",
+                        "Assigned Compliance Officer",
+                        "Action Taken / Remarks",
+                        "Closed / Resolved Date"
+                    )
+                    writer.write(headers.joinToString(",") { escapeCsvCell(it) })
+                    writer.write("\r\n")
+
+                    var serialNo = 1
+                    groups.forEach { group ->
+                        val parent = group.parentInspection
+                        val categoryStr = if (group.isSpotInspection) "Spot / Self" else "Assigned"
+                        val inspDateStr = if (group.inspectionDateMillis > 0)
+                            dateTimeFormat.format(Date(group.inspectionDateMillis)) else "Unscheduled"
+                        val inspStatusStr = parent?.status?.name?.replace("_", " ") ?: "COMPLETED"
+
+                        if (group.compliances.isEmpty()) {
+                            val row = listOf(
+                                serialNo++.toString(),
+                                group.inspectionNumber,
+                                categoryStr,
+                                group.inspectionTypeName,
+                                group.locationName,
+                                group.inspectingOfficerName,
+                                inspDateStr,
+                                inspStatusStr,
+                                "-",
+                                "No Compliances Logged",
+                                "-",
+                                "-",
+                                "-",
+                                "-",
+                                "-",
+                                "-",
+                                "-"
+                            )
+                            writer.write(row.joinToString(",") { escapeCsvCell(it) })
+                            writer.write("\r\n")
+                        } else {
+                            group.compliances.forEachIndexed { idx, comp ->
+                                val targetStr = if (comp.targetDate != null && comp.targetDate!! > 0)
+                                    displayDateFormat.format(Date(comp.targetDate!!)) else "No deadline"
+                                val closedStr = if (comp.closedAt != null && comp.closedAt!! > 0)
+                                    displayDateFormat.format(Date(comp.closedAt!!)) else "-"
+
+                                val row = listOf(
+                                    serialNo++.toString(),
+                                    group.inspectionNumber,
+                                    categoryStr,
+                                    group.inspectionTypeName,
+                                    group.locationName,
+                                    group.inspectingOfficerName,
+                                    inspDateStr,
+                                    inspStatusStr,
+                                    "Point ${idx + 1}",
+                                    comp.inspectionPointTitle.ifBlank { "Observation Point ${idx + 1}" },
+                                    comp.description.ifBlank { "Deficiency noted during inspection." },
+                                    comp.severity.name,
+                                    targetStr,
+                                    comp.status.name.replace("_", " "),
+                                    comp.assignedOfficerName.ifBlank { "Unassigned" },
+                                    comp.complianceRemarks.ifBlank { comp.actionTaken.ifBlank { "Pending action" } },
+                                    closedStr
+                                )
+                                writer.write(row.joinToString(",") { escapeCsvCell(it) })
+                                writer.write("\r\n")
+                            }
+                        }
+                    }
+                }
+            }
+
+            file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "Failed to export Excel: ${e.message}", Toast.LENGTH_LONG).show()
+            null
+        }
     }
 
     private fun getRelevantDate(inspection: Inspection): Long {

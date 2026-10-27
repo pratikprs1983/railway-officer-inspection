@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.example.models.Compliance
 import com.example.models.Inspection
+import com.example.models.InspectionField
 import com.example.models.InspectionStatus
 import com.example.ui.common.DateFilterType
 import com.example.ui.common.InspectionFilterCriteria
@@ -37,6 +39,7 @@ object InspectionWordExporter {
     fun exportFilteredInspectionsToWord(
         context: Context,
         inspections: List<Inspection>,
+        compliances: List<Compliance> = emptyList(),
         criteria: InspectionFilterCriteria? = null,
         ascendingDate: Boolean = false
     ): File? {
@@ -60,7 +63,7 @@ object InspectionWordExporter {
             val fileName = "Inspections_Report_${fileTimestampFormat.format(Date())}.docx"
             val file = File(exportDir, fileName)
 
-            val documentXml = buildFilteredInspectionsDocXml(sortedList, criteria)
+            val documentXml = buildFilteredInspectionsDocXml(context, sortedList, compliances, criteria)
             writeDocxPackage(file, documentXml)
 
             file
@@ -70,6 +73,16 @@ object InspectionWordExporter {
             null
         }
     }
+
+    /**
+     * Backward compatible overload without compliances.
+     */
+    fun exportFilteredInspectionsToWord(
+        context: Context,
+        inspections: List<Inspection>,
+        criteria: InspectionFilterCriteria?,
+        ascendingDate: Boolean
+    ): File? = exportFilteredInspectionsToWord(context, inspections, emptyList(), criteria, ascendingDate)
 
     /**
      * Shares or opens the exported Word file using Android system Chooser.
@@ -143,9 +156,9 @@ object InspectionWordExporter {
                 <w:rPrDefault>
                   <w:rPr>
                     <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
+                    <w:color w:val="1E293B"/>
                     <w:sz w:val="22"/>
                     <w:szCs w:val="22"/>
-                    <w:color w:val="1E293B"/>
                   </w:rPr>
                 </w:rPrDefault>
                 <w:pPrDefault>
@@ -190,7 +203,9 @@ object InspectionWordExporter {
     // =========================================================================
 
     private fun buildFilteredInspectionsDocXml(
+        context: Context?,
         inspections: List<Inspection>,
+        compliances: List<Compliance> = emptyList(),
         criteria: InspectionFilterCriteria?
     ): String {
         val sb = StringBuilder()
@@ -203,44 +218,32 @@ object InspectionWordExporter {
         // 1. Official Header
         sb.append("""
             <w:p>
-              <w:pPr>
-                <w:jc w:val="center"/>
-                <w:spacing w:before="120" w:after="40"/>
+              <w:pPr><w:spacing w:before="120" w:after="40"/><w:jc w:val="center"/>
+                
+                
               </w:pPr>
               <w:r>
-                <w:rPr>
-                  <w:b/>
-                  <w:sz w:val="32"/>
-                  <w:color w:val="1E3A8A"/>
-                </w:rPr>
+                <w:rPr><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="32"/></w:rPr>
                 <w:t>INDIAN RAILWAYS / ROI-CMS</w:t>
               </w:r>
             </w:p>
             <w:p>
-              <w:pPr>
-                <w:jc w:val="center"/>
-                <w:spacing w:after="80"/>
+              <w:pPr><w:spacing w:after="80"/><w:jc w:val="center"/>
+                
+                
               </w:pPr>
               <w:r>
-                <w:rPr>
-                  <w:b/>
-                  <w:sz w:val="24"/>
-                  <w:color w:val="0F172A"/>
-                </w:rPr>
+                <w:rPr><w:b/><w:color w:val="0F172A"/><w:sz w:val="24"/></w:rPr>
                 <w:t>FILTERED INSPECTIONS DOSSIER &amp; COMPREHENSIVE REPORT</w:t>
               </w:r>
             </w:p>
             <w:p>
-              <w:pPr>
-                <w:jc w:val="center"/>
-                <w:spacing w:after="240"/>
+              <w:pPr><w:spacing w:after="240"/><w:jc w:val="center"/>
+                
+                
               </w:pPr>
               <w:r>
-                <w:rPr>
-                  <w:i/>
-                  <w:sz w:val="18"/>
-                  <w:color w:val="64748B"/>
-                </w:rPr>
+                <w:rPr><w:i/><w:color w:val="64748B"/><w:sz w:val="18"/></w:rPr>
                 <w:t>Generated on: $nowStr | Total Inspections in Dossier: ${inspections.size}</w:t>
               </w:r>
             </w:p>
@@ -259,6 +262,11 @@ object InspectionWordExporter {
                 DateFilterType.TODAY -> "Today Only"
                 DateFilterType.LAST_7_DAYS -> "Last 7 Days"
                 DateFilterType.THIS_MONTH -> "This Month"
+                DateFilterType.CUSTOM_RANGE -> {
+                    val fromStr = if (criteria.customDateFromMillis != null) displayDateFormat.format(Date(criteria.customDateFromMillis)) else "Start"
+                    val toStr = if (criteria.customDateToMillis != null) displayDateFormat.format(Date(criteria.customDateToMillis)) else "End"
+                    "$fromStr to $toStr"
+                }
                 DateFilterType.CUSTOM_DATE -> if (criteria.customDateMillis != null) displayDateFormat.format(Date(criteria.customDateMillis!!)) else "Custom Date"
             }
             filterRows.add(listOf("Date Filter", dateLabel))
@@ -279,10 +287,18 @@ object InspectionWordExporter {
         val spotCount = inspections.count { it.isSpotInspection && it.inspectionCategory == "SPOT" }
         val selfCount = inspections.count { it.isSpotInspection && it.inspectionCategory == "SELF" }
 
+        val totalCompliances = compliances.count { c ->
+            inspections.any { insp ->
+                (c.inspectionId.isNotBlank() && c.inspectionId == insp.id) ||
+                (c.inspectionNumber.isNotBlank() && c.inspectionNumber.equals(insp.inspectionNumber, ignoreCase = true))
+            }
+        }
+
         val kpiRows = listOf(
             listOf("Completed Inspections", "$completedCount (${if (inspections.isNotEmpty()) (completedCount * 100 / inspections.size) else 0}%)"),
             listOf("In Progress Inspections", "$inProgressCount"),
             listOf("Assigned / Pending Inspections", "$assignedCount"),
+            listOf("Compliances Assigned to Officers", "$totalCompliances"),
             listOf("Spot / Self Initiated Inspections", "${spotCount + selfCount} (Spot: $spotCount, Self: $selfCount)")
         )
         sb.append("<w:p><w:pPr><w:spacing w:before=\"160\" w:after=\"80\"/></w:pPr></w:p>")
@@ -292,18 +308,27 @@ object InspectionWordExporter {
         sb.append("<w:p><w:pPr><w:spacing w:before=\"280\" w:after=\"80\"/></w:pPr></w:p>")
         appendSectionHeading(sb, "2. FILTERED INSPECTIONS MASTER TABLE", "1E3A8A")
 
-        appendMasterTable(sb, inspections)
+        appendMasterTable(sb, inspections, compliances)
 
         // 5. Detailed Inspection-Wise Findings
         sb.append("<w:p><w:pPr><w:spacing w:before=\"320\" w:after=\"80\"/></w:pPr></w:p>")
         appendSectionHeading(sb, "3. DETAILED INSPECTION-WISE OBSERVATIONS & RESPONSES", "1E3A8A")
 
         inspections.forEachIndexed { index, insp ->
-            appendInspectionDetailBlock(sb, index + 1, insp)
+            appendInspectionDetailBlock(context, sb, index + 1, insp, compliances)
         }
 
         // 6. Sign-off / Verification Block
         appendSignatureBlock(sb)
+
+        sb.append("""
+            <w:sectPr>
+              <w:pgSz w:w="11906" w:h="16838"/>
+              <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
+              <w:cols w:space="708"/>
+              <w:docGrid w:linePitch="360"/>
+            </w:sectPr>
+        """.trimIndent())
 
         sb.append("</w:body>")
         sb.append("</w:document>")
@@ -317,18 +342,14 @@ object InspectionWordExporter {
                 <w:spacing w:before="240" w:after="100"/>
               </w:pPr>
               <w:r>
-                <w:rPr>
-                  <w:b/>
-                  <w:sz w:val="22"/>
-                  <w:color w:val="$colorHex"/>
-                </w:rPr>
+                <w:rPr><w:b/><w:color w:val="$colorHex"/><w:sz w:val="22"/></w:rPr>
                 <w:t>${escapeXml(title)}</w:t>
               </w:r>
             </w:p>
         """.trimIndent())
     }
 
-    private fun appendMasterTable(sb: StringBuilder, inspections: List<Inspection>) {
+    private fun appendMasterTable(sb: StringBuilder, inspections: List<Inspection>, compliances: List<Compliance> = emptyList()) {
         sb.append("""
             <w:tbl>
               <w:tblPr>
@@ -353,27 +374,31 @@ object InspectionWordExporter {
                 <w:trPr><w:tblHeader/></w:trPr>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="600" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="FFFFFF"/></w:rPr><w:t>S.No</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>S.No</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="1600" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="FFFFFF"/></w:rPr><w:t>Inspection #</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Inspection #</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="1400" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="FFFFFF"/></w:rPr><w:t>Date</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Date</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="2200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="FFFFFF"/></w:rPr><w:t>Type &amp; Category</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Type &amp; Category</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
-                  <w:tcPr><w:tcW w:w="2200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="FFFFFF"/></w:rPr><w:t>Officer &amp; Location</w:t></w:r></w:p>
+                  <w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Officer &amp; Location</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
-                  <w:tcPr><w:tcW w:w="1638" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="FFFFFF"/></w:rPr><w:t>Status</w:t></w:r></w:p>
+                  <w:tcPr><w:tcW w:w="1400" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Compliances</w:t></w:r></w:p>
+                </w:tc>
+                <w:tc>
+                  <w:tcPr><w:tcW w:w="1238" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/></w:tcPr>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Status</w:t></w:r></w:p>
                 </w:tc>
               </w:tr>
         """.trimIndent())
@@ -394,6 +419,13 @@ object InspectionWordExporter {
                 else -> "64748B"
             }
 
+            val matchingComp = compliances.filter { c ->
+                (c.inspectionId.isNotBlank() && c.inspectionId == insp.id) ||
+                (c.inspectionNumber.isNotBlank() && c.inspectionNumber.equals(insp.inspectionNumber, ignoreCase = true))
+            }
+            val compCount = matchingComp.size
+            val compText = if (compCount > 0) "$compCount Assigned" else "0"
+
             sb.append("""
               <w:tr>
                 <w:tc>
@@ -402,7 +434,7 @@ object InspectionWordExporter {
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="1600" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="0F172A"/></w:rPr><w:t xml:space="preserve">${escapeXml(insp.inspectionNumber.ifBlank { "INSP-${insp.id.take(6)}" })}</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="0F172A"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(insp.inspectionNumber.ifBlank { "INSP-${insp.id.take(6)}" })}</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="1400" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
@@ -411,16 +443,20 @@ object InspectionWordExporter {
                 <w:tc>
                   <w:tcPr><w:tcW w:w="2200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
                   <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(insp.inspectionTypeName.ifBlank { "Standard Inspection" })}</w:t></w:r></w:p>
-                  <w:p><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="64748B"/></w:rPr><w:t xml:space="preserve">Mode: $categoryStr</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">Mode: $categoryStr</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
-                  <w:tcPr><w:tcW w:w="2200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
+                  <w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
                   <w:p><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(insp.assignedOfficerName.ifBlank { "Unassigned" })}</w:t></w:r></w:p>
-                  <w:p><w:r><w:rPr><w:sz w:val="16"/><w:color w:val="64748B"/></w:rPr><w:t xml:space="preserve">Loc: ${escapeXml(insp.locationName.ifBlank { "Field Track" })}</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">Loc: ${escapeXml(insp.locationName.ifBlank { "Field Track" })}</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
-                  <w:tcPr><w:tcW w:w="1638" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="$statusColor"/></w:rPr><w:t>${insp.status.name}</w:t></w:r></w:p>
+                  <w:tcPr><w:tcW w:w="1400" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="${if (compCount > 0) "1E3A8A" else "64748B"}"/><w:sz w:val="18"/></w:rPr><w:t>$compText</w:t></w:r></w:p>
+                </w:tc>
+                <w:tc>
+                  <w:tcPr><w:tcW w:w="1238" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="$statusColor"/><w:sz w:val="18"/></w:rPr><w:t>${insp.status.name}</w:t></w:r></w:p>
                 </w:tc>
               </w:tr>
             """.trimIndent())
@@ -429,7 +465,13 @@ object InspectionWordExporter {
         sb.append("</w:tbl>")
     }
 
-    private fun appendInspectionDetailBlock(sb: StringBuilder, index: Int, insp: Inspection) {
+    private fun appendInspectionDetailBlock(
+        context: Context?,
+        sb: StringBuilder,
+        index: Int,
+        insp: Inspection,
+        compliances: List<Compliance> = emptyList()
+    ) {
         val numberStr = insp.inspectionNumber.ifBlank { "INSP-${insp.id.take(6)}" }
         val categoryStr = when {
             insp.isSpotInspection && insp.inspectionCategory == "SELF" -> "Self Inspection"
@@ -443,11 +485,7 @@ object InspectionWordExporter {
                 <w:spacing w:before="240" w:after="80"/>
               </w:pPr>
               <w:r>
-                <w:rPr>
-                  <w:b/>
-                  <w:sz w:val="22"/>
-                  <w:color w:val="0369A1"/>
-                </w:rPr>
+                <w:rPr><w:b/><w:color w:val="0369A1"/><w:sz w:val="22"/></w:rPr>
                 <w:t xml:space="preserve">Inspection #$index: $numberStr - ${escapeXml(insp.inspectionTypeName)} ($categoryStr)</w:t>
               </w:r>
             </w:p>
@@ -459,11 +497,22 @@ object InspectionWordExporter {
             String.format(Locale.US, "%.5f, %.5f (Accuracy: %.1fm)", insp.startLatitude, insp.startLongitude, insp.startAccuracy ?: 0f)
         } else "Not Captured"
 
+        val matchingComp = compliances.filter { c ->
+            (c.inspectionId.isNotBlank() && c.inspectionId == insp.id) ||
+            (c.inspectionNumber.isNotBlank() && c.inspectionNumber.equals(insp.inspectionNumber, ignoreCase = true))
+        }
+        val compCount = matchingComp.size
+        val compAssignedOfficers = matchingComp.mapNotNull { it.assignedOfficerName.ifBlank { null } }.distinct()
+        val compStr = if (compCount > 0) {
+            "$compCount Assigned" + (if (compAssignedOfficers.isNotEmpty()) " (Responsible: ${compAssignedOfficers.joinToString(", ")})" else "")
+        } else "0 (No compliances raised)"
+
         val metadataRows = listOf(
             listOf("Inspection Number", numberStr),
             listOf("Inspection Type", insp.inspectionTypeName.ifBlank { "General Inspection" }),
             listOf("Category / Mode", categoryStr),
             listOf("Assigned Officer", insp.assignedOfficerName.ifBlank { "Unassigned" }),
+            listOf("Compliances Assigned to Officer", compStr),
             listOf("Inspection Location", insp.locationName.ifBlank { "Railway Section" }),
             listOf("Status", insp.status.name),
             listOf("Scheduled Date & Time", scheduledStr),
@@ -474,25 +523,54 @@ object InspectionWordExporter {
 
         appendKeyValueTable(sb, metadataRows, "0284C7")
 
-        // Checklist Responses Table (if available)
-        val responses = parseChecklistResponses(insp.responses)
-        if (responses.isNotEmpty()) {
+        // Resolve all template fields defined for this inspection
+        val fieldsList = try {
+            if (context != null && insp.inspectionTypeId.isNotBlank()) {
+                val db = com.example.data.AppDatabase.getDatabase(context)
+                val direct = db.inspectionDao().getInspectionFieldsListSync(insp.inspectionTypeId)
+                if (direct.isNotEmpty()) {
+                    direct
+                } else {
+                    val all = db.inspectionDao().getAllInspectionFieldsListSync()
+                    all.filter { it.inspectionTypeId == insp.inspectionTypeId }
+                }
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+
+        // Comprehensive Checklist Responses Table
+        val (standardList, customList) = parseComprehensiveChecklist(insp.responses, fieldsList)
+        if (standardList.isNotEmpty()) {
+            sb.append("""
+                <w:p>
+                  <w:pPr>
+                    <w:spacing w:before="140" w:after="60"/>
+                  </w:pPr>
+                  <w:r>
+                    <w:rPr><w:b/><w:color w:val="1E3A8A"/><w:sz w:val="20"/></w:rPr>
+                    <w:t>Checklist Parameters &amp; Detailed Observations (${standardList.size} Inspection Points):</w:t>
+                  </w:r>
+                </w:p>
+            """.trimIndent())
+            appendChecklistPointsTable(sb, standardList)
+        }
+
+        if (customList.isNotEmpty()) {
             sb.append("""
                 <w:p>
                   <w:pPr>
                     <w:spacing w:before="120" w:after="60"/>
                   </w:pPr>
                   <w:r>
-                    <w:rPr>
-                      <w:b/>
-                      <w:sz w:val="18"/>
-                      <w:color w:val="475569"/>
-                    </w:rPr>
-                    <w:t>Recorded Checklist Findings &amp; Responses:</w:t>
+                    <w:rPr><w:b/><w:color w:val="7C2D12"/><w:sz w:val="20"/></w:rPr>
+                    <w:t>Additional / Custom Observation Points (${customList.size}):</w:t>
                   </w:r>
                 </w:p>
             """.trimIndent())
-            appendKeyValueTable(sb, responses, "475569")
+            appendChecklistPointsTable(sb, customList)
         }
 
         sb.append("""<w:p><w:pPr><w:spacing w:after="160"/></w:pPr></w:p>""")
@@ -535,11 +613,11 @@ object InspectionWordExporter {
                 <w:trPr><w:cantSplit/></w:trPr>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="3200" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="334155"/></w:rPr><w:t xml:space="preserve">${escapeXml(key)}</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="334155"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(key)}</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="6438" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$bg"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:sz w:val="18"/><w:color w:val="0F172A"/></w:rPr><w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="0F172A"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>
                 </w:tc>
               </w:tr>
             """.trimIndent())
@@ -573,66 +651,223 @@ object InspectionWordExporter {
               <w:tr>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="4819" w:type="dxa"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="1E293B"/></w:rPr><w:t>PREPARED / INSPECTED BY:</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="1E293B"/><w:sz w:val="18"/></w:rPr><w:t>PREPARED / INSPECTED BY:</w:t></w:r></w:p>
                   <w:p><w:pPr><w:spacing w:before="360" w:after="40"/></w:pPr><w:r><w:t>___________________________________________</w:t></w:r></w:p>
-                  <w:p><w:r><w:rPr><w:sz w:val="18"/><w:color w:val="475569"/></w:rPr><w:t>Field Inspecting Officer Signature</w:t></w:r></w:p>
-                  <w:p><w:r><w:rPr><w:sz w:val="18"/><w:color w:val="475569"/></w:rPr><w:t>Date: ____________________________________</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="475569"/><w:sz w:val="18"/></w:rPr><w:t>Field Inspecting Officer Signature</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="475569"/><w:sz w:val="18"/></w:rPr><w:t>Date: ____________________________________</w:t></w:r></w:p>
                 </w:tc>
                 <w:tc>
                   <w:tcPr><w:tcW w:w="4819" w:type="dxa"/></w:tcPr>
-                  <w:p><w:r><w:rPr><w:b/><w:sz w:val="18"/><w:color w:val="1E293B"/></w:rPr><w:t>CONTROLLING / DIVISIONAL AUTHORITY:</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:b/><w:color w:val="1E293B"/><w:sz w:val="18"/></w:rPr><w:t>CONTROLLING / DIVISIONAL AUTHORITY:</w:t></w:r></w:p>
                   <w:p><w:pPr><w:spacing w:before="360" w:after="40"/></w:pPr><w:r><w:t>___________________________________________</w:t></w:r></w:p>
-                  <w:p><w:r><w:rPr><w:sz w:val="18"/><w:color w:val="475569"/></w:rPr><w:t>Divisional Railway Officer Signature</w:t></w:r></w:p>
-                  <w:p><w:r><w:rPr><w:sz w:val="18"/><w:color w:val="475569"/></w:rPr><w:t>Date: ____________________________________</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="475569"/><w:sz w:val="18"/></w:rPr><w:t>Divisional Railway Officer Signature</w:t></w:r></w:p>
+                  <w:p><w:r><w:rPr><w:color w:val="475569"/><w:sz w:val="18"/></w:rPr><w:t>Date: ____________________________________</w:t></w:r></w:p>
                 </w:tc>
               </w:tr>
             </w:tbl>
         """.trimIndent())
     }
 
-    private fun parseChecklistResponses(responsesJson: String): List<List<String>> {
-        val list = mutableListOf<List<String>>()
-        if (responsesJson.isBlank() || responsesJson == "{}") return list
+    private fun appendChecklistPointsTable(
+        sb: StringBuilder,
+        rows: List<List<String>> // [#, Label, Category, Value]
+    ) {
+        sb.append("""
+            <w:tbl>
+              <w:tblPr>
+                <w:tblW w:w="9638" w:type="dxa"/>
+                <w:jc w:val="center"/>
+                <w:tblBorders>
+                  <w:top w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>
+                  <w:left w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>
+                  <w:bottom w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>
+                  <w:right w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>
+                  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/>
+                  <w:insideV w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/>
+                </w:tblBorders>
+                <w:tblCellMar>
+                  <w:top w:w="100" w:type="dxa"/>
+                  <w:left w:w="120" w:type="dxa"/>
+                  <w:bottom w:w="100" w:type="dxa"/>
+                  <w:right w:w="120" w:type="dxa"/>
+                </w:tblCellMar>
+              </w:tblPr>
+              <w:tr>
+                <w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>
+                <w:tc><w:tcPr><w:tcW w:w="550" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="0F2C59"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>#</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="5388" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="0F2C59"/></w:tcPr><w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Inspection Checklist Point / Parameter</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="0F2C59"/></w:tcPr><w:p><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Category / Section</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="1900" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="0F2C59"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="18"/></w:rPr><w:t>Finding / Response</w:t></w:r></w:p></w:tc>
+              </w:tr>
+        """.trimIndent())
 
-        try {
-            val json = JSONObject(responsesJson)
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                if (key == "__custom_fields__" || key == "__attachments__") continue
+        rows.forEachIndexed { idx, item ->
+            val num = item.getOrNull(0) ?: "${idx + 1}"
+            val label = item.getOrNull(1) ?: ""
+            val category = item.getOrNull(2) ?: ""
+            val value = item.getOrNull(3) ?: ""
+            val rowBg = if (idx % 2 == 0) "FFFFFF" else "F8FAFC"
 
-                val value = json.optString(key, "")
-                if (value.startsWith("content://") || value.startsWith("file://")) {
-                    list.add(listOf(formatFieldName(key), "[Photo / Media Attached]"))
-                } else if (value.isNotBlank()) {
-                    list.add(listOf(formatFieldName(key), value))
-                }
+            val isPass = value.equals("Yes", ignoreCase = true) || value.equals("Pass", ignoreCase = true) || value.equals("OK", ignoreCase = true) || value.equals("Normal", ignoreCase = true)
+            val isFail = value.equals("No", ignoreCase = true) || value.equals("Fail", ignoreCase = true) || value.equals("Deficient", ignoreCase = true)
+            val isNotRecorded = value.equals("Not Recorded", ignoreCase = true) || value.equals("N/A", ignoreCase = true)
+
+            val valColor = when {
+                isPass -> "15803D"
+                isFail -> "B91C1C"
+                isNotRecorded -> "64748B"
+                else -> "0F172A"
+            }
+            val valBg = when {
+                isPass -> "F0FDF4"
+                isFail -> "FEF2F2"
+                else -> rowBg
             }
 
-            if (json.has("__custom_fields__")) {
-                val customArr = json.getJSONArray("__custom_fields__")
-                for (i in 0 until customArr.length()) {
-                    val obj = customArr.getJSONObject(i)
-                    val label = obj.optString("label", "Custom Point")
-                    val fieldName = obj.optString("fieldName", "")
-                    val value = json.optString(fieldName, "").ifBlank {
-                        obj.optString("defaultValue", "")
+            sb.append("""
+              <w:tr>
+                <w:trPr><w:cantSplit/></w:trPr>
+                <w:tc><w:tcPr><w:tcW w:w="550" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$rowBg"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="475569"/><w:sz w:val="18"/></w:rPr><w:t>$num</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="5388" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$rowBg"/></w:tcPr><w:p><w:r><w:rPr><w:b/><w:color w:val="0F172A"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(label)}</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$rowBg"/></w:tcPr><w:p><w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="16"/></w:rPr><w:t xml:space="preserve">${escapeXml(category.ifBlank { "Standard" })}</w:t></w:r></w:p></w:tc>
+                <w:tc><w:tcPr><w:tcW w:w="1900" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="$valBg"/></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:color w:val="$valColor"/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p></w:tc>
+              </w:tr>
+            """.trimIndent())
+        }
+
+        sb.append("</w:tbl>")
+        sb.append("<w:p><w:pPr><w:spacing w:before=\"80\" w:after=\"80\"/></w:pPr><w:r><w:t></w:t></w:r></w:p>")
+    }
+
+    private fun parseComprehensiveChecklist(
+        responsesJson: String,
+        fieldsList: List<InspectionField>
+    ): Pair<List<List<String>>, List<List<String>>> {
+        val standardList = mutableListOf<List<String>>()
+        val customList = mutableListOf<List<String>>()
+
+        val responseMap = mutableMapOf<String, String>()
+        val customPoints = mutableListOf<Pair<String, String>>()
+
+        try {
+            if (responsesJson.isNotBlank() && responsesJson != "{}") {
+                val json = JSONObject(responsesJson)
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    if (k == "__custom_fields__" || k == "__attachments__") continue
+                    val v = json.optString(k, "")
+                    if (v.isNotBlank()) {
+                        responseMap[k] = v
                     }
-                    if (value.isNotBlank()) {
-                        list.add(listOf(label, value))
+                }
+
+                if (json.has("__custom_fields__")) {
+                    val customArr = json.getJSONArray("__custom_fields__")
+                    for (i in 0 until customArr.length()) {
+                        val obj = customArr.getJSONObject(i)
+                        val lbl = obj.optString("label", "Custom Point")
+                        val fn = obj.optString("fieldName", "")
+                        val valStr = json.optString(fn, "").ifBlank { obj.optString("defaultValue", "") }
+                        if (lbl.isNotBlank() && valStr.isNotBlank()) {
+                            customPoints.add(lbl to valStr)
+                        }
                     }
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        return list
+
+        val matchedKeys = mutableSetOf<String>()
+
+        if (fieldsList.isNotEmpty()) {
+            fieldsList.forEachIndexed { idx, field ->
+                val matchedEntry = responseMap.entries.firstOrNull { (k, _) ->
+                    k == field.fieldName || k == field.id ||
+                    k.equals(field.fieldName, ignoreCase = true) ||
+                    k.equals(field.id, ignoreCase = true) ||
+                    (k.isNotBlank() && field.fieldName.isNotBlank() && (
+                        k.startsWith(field.fieldName) || field.fieldName.startsWith(k)
+                    ))
+                }
+                if (matchedEntry != null) {
+                    matchedKeys.add(matchedEntry.key)
+                }
+
+                val rawVal = matchedEntry?.value ?: responseMap[field.fieldName] ?: responseMap[field.id] ?: ""
+                val displayVal = when {
+                    rawVal.startsWith("content://") || rawVal.startsWith("file://") -> "[Photo / Media Attached]"
+                    rawVal.isNotBlank() -> rawVal
+                    else -> "Not Recorded"
+                }
+
+                val categoryStr = buildString {
+                    if (field.categoryName.isNotBlank()) append(field.categoryName)
+                    if (field.subcategoryName.isNotBlank()) {
+                        if (isNotEmpty()) append(" • ")
+                        append(field.subcategoryName)
+                    }
+                }
+
+                standardList.add(listOf(
+                    (idx + 1).toString(),
+                    field.label.ifBlank { formatFieldName(field.fieldName) },
+                    categoryStr,
+                    displayVal
+                ))
+            }
+        }
+
+        // Include any remaining entries in responseMap not matched to a template field
+        var extraIdx = standardList.size + 1
+        responseMap.forEach { (k, v) ->
+            if (!matchedKeys.contains(k)) {
+                val displayVal = if (v.startsWith("content://") || v.startsWith("file://")) "[Photo / Media Attached]" else v
+                standardList.add(listOf(
+                    (extraIdx++).toString(),
+                    formatFieldName(k),
+                    "Field Response",
+                    displayVal
+                ))
+            }
+        }
+
+        // Custom observations
+        customPoints.forEachIndexed { cIdx, (lbl, ans) ->
+            customList.add(listOf(
+                (cIdx + 1).toString(),
+                lbl,
+                "Custom Observation",
+                ans
+            ))
+        }
+
+        return Pair(standardList, customList)
     }
 
     private fun formatFieldName(key: String): String {
-        return key.replace("_", " ")
-            .split(" ")
-            .joinToString(" ") { word -> word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() } }
+        val cleaned = key.replace("__[0-9]+$".toRegex(), "")
+            .replace("_[0-9]+$".toRegex(), "")
+            .replace("___", " / ")
+            .replace("__", " ")
+            .replace("_", " ")
+            .trim()
+
+        if (cleaned.isBlank()) return "Inspection Point"
+        return cleaned.split(" ").joinToString(" ") { word ->
+            if (word.equals("pme", ignoreCase = true) || word.equals("lp", ignoreCase = true) ||
+                word.equals("hq", ignoreCase = true) || word.equals("alp", ignoreCase = true) ||
+                word.equals("bp", ignoreCase = true) || word.equals("fp", ignoreCase = true) ||
+                word.equals("mr", ignoreCase = true) || word.equals("vcd", ignoreCase = true) ||
+                word.equals("cbc", ignoreCase = true) || word.equals("acp", ignoreCase = true) ||
+                word.equals("adc", ignoreCase = true) || word.equals("gsr", ignoreCase = true)
+            ) {
+                word.uppercase(Locale.getDefault())
+            } else {
+                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+            }
+        }
     }
 
     private fun getRelevantDate(insp: Inspection): Long {
@@ -646,8 +881,9 @@ object InspectionWordExporter {
 
     private fun escapeXml(text: String?): String {
         if (text == null) return ""
+        val sanitized = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
         val sb = StringBuilder()
-        for (ch in text) {
+        for (ch in sanitized) {
             when (ch) {
                 '&' -> sb.append("&amp;")
                 '<' -> sb.append("&lt;")
@@ -655,7 +891,7 @@ object InspectionWordExporter {
                 '"' -> sb.append("&quot;")
                 '\'' -> sb.append("&apos;")
                 else -> {
-                    if (ch.code in 0x20..0xD7FF || ch == '\t' || ch == '\n' || ch == '\r') {
+                    if (ch.code in 0x20..0xD7FF || ch == '\t') {
                         sb.append(ch)
                     }
                 }

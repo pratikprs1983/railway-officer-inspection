@@ -37,6 +37,7 @@ enum class DateFilterType(val label: String) {
     TODAY("Today"),
     LAST_7_DAYS("Last 7 Days"),
     THIS_MONTH("This Month"),
+    CUSTOM_RANGE("Custom Range"),
     CUSTOM_DATE("Specific Date")
 }
 
@@ -48,6 +49,8 @@ data class InspectionFilterCriteria(
     val inspectionTypeName: String? = null,
     val dateFilterType: DateFilterType = DateFilterType.ALL,
     val customDateMillis: Long? = null,
+    val customDateFromMillis: Long? = null,
+    val customDateToMillis: Long? = null,
     val status: InspectionStatus? = null,
     val category: String? = null // null = All, "ASSIGNED", "SPOT", "SELF"
 ) {
@@ -133,6 +136,20 @@ fun List<Inspection>.applyInspectionFilters(criteria: InspectionFilterCriteria):
             DateFilterType.THIS_MONTH -> {
                 relevantDate in thisMonthStart..thisMonthEnd
             }
+            DateFilterType.CUSTOM_RANGE -> {
+                val from = criteria.customDateFromMillis
+                val to = criteria.customDateToMillis
+                when {
+                    from != null && to != null -> {
+                        val s = getStartOfDay(minOf(from, to))
+                        val e = getEndOfDay(maxOf(from, to))
+                        relevantDate in s..e
+                    }
+                    from != null -> relevantDate >= getStartOfDay(from)
+                    to != null -> relevantDate <= getEndOfDay(to)
+                    else -> true
+                }
+            }
             DateFilterType.CUSTOM_DATE -> {
                 if (criteria.customDateMillis != null) {
                     val customStart = getStartOfDay(criteria.customDateMillis)
@@ -209,47 +226,91 @@ fun InspectionFilterBar(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Top Search Bar & Filter Dialog Trigger
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = criteria.searchQuery,
-                onValueChange = { onCriteriaChange(criteria.copy(searchQuery = it)) },
-                placeholder = {
-                    Text(
-                        "Search by #, type, location...",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(20.dp)) },
-                trailingIcon = {
-                    if (criteria.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onCriteriaChange(criteria.copy(searchQuery = "")) }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                maxLines = 1,
+        var isSearchExpanded by remember { mutableStateOf(criteria.searchQuery.isNotEmpty()) }
+
+        // Top Expandable Search Bar (Revealed when search icon is clicked or query exists)
+        AnimatedVisibility(visible = isSearchExpanded || criteria.searchQuery.isNotEmpty()) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp)
-                    .testTag("inspection_search_input"),
-                shape = RoundedCornerShape(12.dp)
-            )
+                    .fillMaxWidth()
+                    .padding(bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = criteria.searchQuery,
+                    onValueChange = { onCriteriaChange(criteria.copy(searchQuery = it)) },
+                    placeholder = {
+                        Text(
+                            "Search by #, type, location...",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF94A3B8)
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(20.dp), tint = Color(0xFFEA580C)) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            onCriteriaChange(criteria.copy(searchQuery = ""))
+                            isSearchExpanded = false
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close Search", modifier = Modifier.size(18.dp))
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color(0xFF0F172A),
+                        unfocusedTextColor = Color(0xFF0F172A),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        cursorColor = Color(0xFFEA580C),
+                        focusedBorderColor = Color(0xFFEA580C),
+                        unfocusedBorderColor = Color(0xFFCBD5E1)
+                    ),
+                    singleLine = true,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("inspection_search_input"),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        }
+
+        // Quick Filter Chips Row (Search Icon + Filters Button + Action Buttons + Category + Date + Status)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Search Icon Button (when search field is collapsed)
+            if (!isSearchExpanded && criteria.searchQuery.isEmpty()) {
+                FilledTonalIconButton(
+                    onClick = { isSearchExpanded = true },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("search_icon_button"),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = "Search",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
             // Filter Button with Badge
             FilledTonalButton(
                 onClick = { showAdvancedFilterDialog = true },
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
-                    .height(50.dp)
+                    .height(36.dp)
                     .testTag("filter_button"),
                 colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor = if (criteria.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
@@ -265,28 +326,19 @@ fun InspectionFilterBar(
                     Icon(
                         Icons.Default.FilterList,
                         contentDescription = "Filter",
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(16.dp),
                         tint = if (criteria.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "Filters",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (criteria.isActive) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (criteria.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (criteria.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
-        }
-
-        // Quick Filter Chips Row (Action Buttons + Category + Date + Status)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             // Action Buttons (Preview Dossier, Export Excel, Download Word)
             if (onViewDossier != null) {
                 AssistChip(
@@ -301,10 +353,10 @@ fun InspectionFilterBar(
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        labelColor = MaterialTheme.colorScheme.primary
+                        containerColor = Color(0xFFE8F1F8),
+                        labelColor = Color(0xFF0D47A1)
                     ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                     modifier = Modifier.testTag("view_dossier_button")
                 )
             }
@@ -318,14 +370,14 @@ fun InspectionFilterBar(
                             Icons.Default.TableChart,
                             contentDescription = "Export Excel",
                             modifier = Modifier.size(16.dp),
-                            tint = Color(0xFF2E7D32)
+                            tint = Color(0xFF166534)
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = Color(0xFF1B5E20).copy(alpha = 0.12f),
-                        labelColor = Color(0xFF2E7D32)
+                        containerColor = Color(0xFFDCFCE7),
+                        labelColor = Color(0xFF166534)
                     ),
-                    border = BorderStroke(1.dp, Color(0xFF2E7D32).copy(alpha = 0.3f)),
+                    border = BorderStroke(1.dp, Color(0xFF86EFAC)),
                     modifier = Modifier.testTag("export_excel_button")
                 )
             }
@@ -339,14 +391,14 @@ fun InspectionFilterBar(
                             Icons.Default.Description,
                             contentDescription = "Download Word Dossier",
                             modifier = Modifier.size(16.dp),
-                            tint = Color(0xFF1E3A8A)
+                            tint = Color(0xFF0D47A1)
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
-                        containerColor = Color(0xFF1E3A8A).copy(alpha = 0.12f),
-                        labelColor = Color(0xFF1E3A8A)
+                        containerColor = Color(0xFFE8F1F8),
+                        labelColor = Color(0xFF0D47A1)
                     ),
-                    border = BorderStroke(1.dp, Color(0xFF1E3A8A).copy(alpha = 0.3f)),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                     modifier = Modifier.testTag("export_word_button")
                 )
             }
@@ -475,14 +527,36 @@ fun InspectionFilterBar(
 
                 // Date badge
                 if (criteria.dateFilterType != DateFilterType.ALL) {
-                    val dateLabel = if (criteria.dateFilterType == DateFilterType.CUSTOM_DATE && criteria.customDateMillis != null) {
-                        SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(criteria.customDateMillis))
-                    } else {
-                        criteria.dateFilterType.label
+                    val df = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                    val dateLabel = when (criteria.dateFilterType) {
+                        DateFilterType.CUSTOM_RANGE -> {
+                            when {
+                                criteria.customDateFromMillis != null && criteria.customDateToMillis != null ->
+                                    "${df.format(Date(criteria.customDateFromMillis))} - ${df.format(Date(criteria.customDateToMillis))}"
+                                criteria.customDateFromMillis != null ->
+                                    "From ${df.format(Date(criteria.customDateFromMillis))}"
+                                criteria.customDateToMillis != null ->
+                                    "Until ${df.format(Date(criteria.customDateToMillis))}"
+                                else -> "Custom Range"
+                            }
+                        }
+                        DateFilterType.CUSTOM_DATE -> if (criteria.customDateMillis != null) {
+                            df.format(Date(criteria.customDateMillis))
+                        } else "Specific Date"
+                        else -> criteria.dateFilterType.label
                     }
                     InputChip(
                         selected = true,
-                        onClick = { onCriteriaChange(criteria.copy(dateFilterType = DateFilterType.ALL, customDateMillis = null)) },
+                        onClick = {
+                            onCriteriaChange(
+                                criteria.copy(
+                                    dateFilterType = DateFilterType.ALL,
+                                    customDateMillis = null,
+                                    customDateFromMillis = null,
+                                    customDateToMillis = null
+                                )
+                            )
+                        },
                         label = { Text("Date: $dateLabel", style = MaterialTheme.typography.labelSmall) },
                         trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(14.dp)) }
                     )
@@ -924,13 +998,27 @@ fun InspectionAdvancedFilterDialog(
                     ) {
                         FilterChip(
                             selected = tempCriteria.dateFilterType == DateFilterType.ALL,
-                            onClick = { tempCriteria = tempCriteria.copy(dateFilterType = DateFilterType.ALL, customDateMillis = null) },
+                            onClick = {
+                                tempCriteria = tempCriteria.copy(
+                                    dateFilterType = DateFilterType.ALL,
+                                    customDateMillis = null,
+                                    customDateFromMillis = null,
+                                    customDateToMillis = null
+                                )
+                            },
                             label = { Text("All Dates", style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = tempCriteria.dateFilterType == DateFilterType.TODAY,
-                            onClick = { tempCriteria = tempCriteria.copy(dateFilterType = DateFilterType.TODAY, customDateMillis = null) },
+                            onClick = {
+                                tempCriteria = tempCriteria.copy(
+                                    dateFilterType = DateFilterType.TODAY,
+                                    customDateMillis = null,
+                                    customDateFromMillis = null,
+                                    customDateToMillis = null
+                                )
+                            },
                             label = { Text("Today", style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f)
                         )
@@ -942,74 +1030,209 @@ fun InspectionAdvancedFilterDialog(
                     ) {
                         FilterChip(
                             selected = tempCriteria.dateFilterType == DateFilterType.LAST_7_DAYS,
-                            onClick = { tempCriteria = tempCriteria.copy(dateFilterType = DateFilterType.LAST_7_DAYS, customDateMillis = null) },
+                            onClick = {
+                                tempCriteria = tempCriteria.copy(
+                                    dateFilterType = DateFilterType.LAST_7_DAYS,
+                                    customDateMillis = null,
+                                    customDateFromMillis = null,
+                                    customDateToMillis = null
+                                )
+                            },
                             label = { Text("Last 7 Days", style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = tempCriteria.dateFilterType == DateFilterType.THIS_MONTH,
-                            onClick = { tempCriteria = tempCriteria.copy(dateFilterType = DateFilterType.THIS_MONTH, customDateMillis = null) },
+                            onClick = {
+                                tempCriteria = tempCriteria.copy(
+                                    dateFilterType = DateFilterType.THIS_MONTH,
+                                    customDateMillis = null,
+                                    customDateFromMillis = null,
+                                    customDateToMillis = null
+                                )
+                            },
                             label = { Text("This Month", style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // Custom Specific Date Picker Option
+                    // Custom Date Range Option (From & To) - replacing single specific date
+                    val isCustomRangeActive = tempCriteria.dateFilterType == DateFilterType.CUSTOM_RANGE &&
+                            (tempCriteria.customDateFromMillis != null || tempCriteria.customDateToMillis != null)
+
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.outlinedCardColors(
-                            containerColor = if (tempCriteria.dateFilterType == DateFilterType.CUSTOM_DATE) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            containerColor = if (isCustomRangeActive) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
                             } else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isCustomRangeActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                         )
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Column {
-                                Text(
-                                    "Pick Specific Date",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = if (tempCriteria.dateFilterType == DateFilterType.CUSTOM_DATE && tempCriteria.customDateMillis != null) {
-                                        dateFormat.format(Date(tempCriteria.customDateMillis!!))
-                                    } else "Select custom calendar date",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (tempCriteria.dateFilterType == DateFilterType.CUSTOM_DATE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    val currentCal = Calendar.getInstance()
-                                    if (tempCriteria.customDateMillis != null) {
-                                        currentCal.timeInMillis = tempCriteria.customDateMillis!!
-                                    }
-                                    DatePickerDialog(
-                                        context,
-                                        { _, y, m, d ->
-                                            val selectedCal = Calendar.getInstance()
-                                            selectedCal.set(y, m, d)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.DateRange,
+                                        contentDescription = null,
+                                        tint = if (isCustomRangeActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "Custom Date Range",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCustomRangeActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                if (tempCriteria.customDateFromMillis != null || tempCriteria.customDateToMillis != null) {
+                                    TextButton(
+                                        onClick = {
                                             tempCriteria = tempCriteria.copy(
-                                                dateFilterType = DateFilterType.CUSTOM_DATE,
-                                                customDateMillis = selectedCal.timeInMillis
+                                                dateFilterType = DateFilterType.ALL,
+                                                customDateFromMillis = null,
+                                                customDateToMillis = null,
+                                                customDateMillis = null
                                             )
                                         },
-                                        currentCal.get(Calendar.YEAR),
-                                        currentCal.get(Calendar.MONTH),
-                                        currentCal.get(Calendar.DAY_OF_MONTH)
-                                    ).show()
-                                },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("Clear Range", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+
+                            // Range Inputs: From Date and To Date
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (tempCriteria.customDateMillis == null) "Choose Date" else "Change")
+                                // From Date Box
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            val cal = Calendar.getInstance()
+                                            if (tempCriteria.customDateFromMillis != null) {
+                                                cal.timeInMillis = tempCriteria.customDateFromMillis!!
+                                            }
+                                            DatePickerDialog(
+                                                context,
+                                                { _, y, m, d ->
+                                                    val sel = Calendar.getInstance().apply { set(y, m, d, 0, 0, 0) }
+                                                    tempCriteria = tempCriteria.copy(
+                                                        dateFilterType = DateFilterType.CUSTOM_RANGE,
+                                                        customDateFromMillis = sel.timeInMillis
+                                                    )
+                                                },
+                                                cal.get(Calendar.YEAR),
+                                                cal.get(Calendar.MONTH),
+                                                cal.get(Calendar.DAY_OF_MONTH)
+                                            ).show()
+                                        },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (tempCriteria.customDateFromMillis != null) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, if (tempCriteria.customDateFromMillis != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                        Text("From Date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (tempCriteria.customDateFromMillis != null) dateFormat.format(Date(tempCriteria.customDateFromMillis!!)) else "Start Date",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = if (tempCriteria.customDateFromMillis != null) FontWeight.Medium else FontWeight.Normal,
+                                                color = if (tempCriteria.customDateFromMillis != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                            )
+                                            Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+
+                                // To Date Box
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            val cal = Calendar.getInstance()
+                                            if (tempCriteria.customDateToMillis != null) {
+                                                cal.timeInMillis = tempCriteria.customDateToMillis!!
+                                            } else if (tempCriteria.customDateFromMillis != null) {
+                                                cal.timeInMillis = tempCriteria.customDateFromMillis!!
+                                            }
+                                            DatePickerDialog(
+                                                context,
+                                                { _, y, m, d ->
+                                                    val sel = Calendar.getInstance().apply { set(y, m, d, 23, 59, 59) }
+                                                    tempCriteria = tempCriteria.copy(
+                                                        dateFilterType = DateFilterType.CUSTOM_RANGE,
+                                                        customDateToMillis = sel.timeInMillis
+                                                    )
+                                                },
+                                                cal.get(Calendar.YEAR),
+                                                cal.get(Calendar.MONTH),
+                                                cal.get(Calendar.DAY_OF_MONTH)
+                                            ).show()
+                                        },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (tempCriteria.customDateToMillis != null) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, if (tempCriteria.customDateToMillis != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                        Text("To Date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (tempCriteria.customDateToMillis != null) dateFormat.format(Date(tempCriteria.customDateToMillis!!)) else "End Date",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = if (tempCriteria.customDateToMillis != null) FontWeight.Medium else FontWeight.Normal,
+                                                color = if (tempCriteria.customDateToMillis != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                            )
+                                            Icon(Icons.Default.Event, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isCustomRangeActive) {
+                                val fromStr = tempCriteria.customDateFromMillis?.let { dateFormat.format(Date(it)) }
+                                val toStr = tempCriteria.customDateToMillis?.let { dateFormat.format(Date(it)) }
+                                val rangeSummary = when {
+                                    fromStr != null && toStr != null -> "Selected: $fromStr → $toStr"
+                                    fromStr != null -> "From: $fromStr onwards"
+                                    toStr != null -> "Up to: $toStr"
+                                    else -> ""
+                                }
+                                if (rangeSummary.isNotBlank()) {
+                                    Text(
+                                        text = rangeSummary,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
                     }

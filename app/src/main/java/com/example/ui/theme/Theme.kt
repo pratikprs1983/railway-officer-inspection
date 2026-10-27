@@ -8,43 +8,48 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme =
-  darkColorScheme(
-    primary = PrimaryDark,
-    secondary = SecondaryDark,
-    tertiary = TertiaryGray,
-    background = BackgroundDark,
-    surface = SurfaceDark
-  )
-
-private val LightColorScheme =
+// Clean official Sonpur Connect Indian Railways Orange & White Theme
+private val SonpurConnectColorScheme =
   lightColorScheme(
-    primary = PrimaryBlue,
-    secondary = SecondaryRed,
-    tertiary = TertiaryGray,
-    background = BackgroundLight,
-    surface = SurfaceLight
+    primary = PrimaryOrange,
+    onPrimary = Color.White,
+    primaryContainer = PrimaryContainerLight,
+    onPrimaryContainer = OnPrimaryContainerLight,
+    secondary = SecondaryAmber,
+    onSecondary = Color.White,
+    secondaryContainer = SecondaryContainerLight,
+    onSecondaryContainer = OnSecondaryContainerLight,
+    tertiary = TertiaryGreen,
+    onTertiary = Color.White,
+    tertiaryContainer = TertiaryContainerLight,
+    onTertiaryContainer = OnTertiaryContainerLight,
+    error = ErrorRed,
+    onError = Color.White,
+    errorContainer = ErrorRedLight,
+    onErrorContainer = ErrorRedDark,
+    background = BackgroundLight,        // #F8FAFC Clean administrative light
+    onBackground = OnSurfaceLight,      // #0F172A Deep dark slate (100% visible)
+    surface = SurfaceLight,             // #FFFFFF Pure crisp white
+    onSurface = OnSurfaceLight,         // #0F172A Deep dark slate (100% visible)
+    surfaceVariant = SurfaceVariantLight, // #FFF7ED Soft warm cream/orange tint
+    onSurfaceVariant = OnSurfaceVariantLight, // #475569 Medium slate
+    outline = OutlineLight,             // #CBD5E1 Clean subtle border
+    outlineVariant = OutlineVariantLight // #E2E8F0 Soft divider border
   )
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is available on Android 12+
-  dynamicColor: Boolean = true,
+  // Enforce the official Sonpur Connect Orange & White brand identity
+  darkTheme: Boolean = false,
+  dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
-
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
-    }
-
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  MaterialTheme(
+    colorScheme = SonpurConnectColorScheme,
+    typography = Typography,
+    content = content
+  )
 }

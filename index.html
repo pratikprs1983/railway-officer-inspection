@@ -1,73 +1,343 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="vande-bharat">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ROICMS — Railway Officer Inspection & Compliance Management System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
-          colors: {
-            railway: {
-              navy: '#0F1E36',
-              blue: '#1E3A8A',
-              lightBlue: '#3B82F6',
-              maroon: '#800000',
-              gold: '#D97706',
-              cream: '#F8FAFC'
-            }
-          },
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace']
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          },
+          colors: {
+            theme: {
+              primary: 'var(--primary)',
+              primaryHover: 'var(--primary-hover)',
+              primaryLight: 'var(--primary-light)',
+              secondary: 'var(--secondary)',
+              accent: 'var(--accent)',
+              accentGlow: 'var(--accent-glow)',
+              bgStart: 'var(--bg-gradient-start)',
+              bgMid: 'var(--bg-gradient-mid)',
+              bgEnd: 'var(--bg-gradient-end)',
+              cardBg: 'var(--card-bg)',
+              cardBorder: 'var(--card-border)',
+              textPrimary: 'var(--text-primary)',
+              textMuted: 'var(--text-muted)',
+              bannerFrom: 'var(--banner-from)',
+              bannerTo: 'var(--banner-to)',
+              headerFrom: 'var(--header-from)',
+              headerTo: 'var(--header-to)'
+            }
           }
         }
       }
     }
   </script>
   <style>
-    .glass-card {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(226, 232, 240, 0.8);
+    /* ==========================================================================
+       VIBRANT COLORFUL THEMES CSS (Variables & Palettes)
+       ========================================================================== */
+
+    /* 1. Theme: Vande Bharat Sapphire (Royal Rail Blue, Azure, Amber Gold) */
+    html[data-theme="vande-bharat"] {
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-light: #EFF6FF;
+      --secondary: #0F172A;
+      --accent: #F59E0B;
+      --accent-glow: rgba(245, 158, 11, 0.4);
+      --bg-gradient-start: #F0F7FF;
+      --bg-gradient-mid: #FFFFFF;
+      --bg-gradient-end: #F8FAFC;
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(191, 219, 254, 0.8);
+      --card-border-hover: #3B82F6;
+      --text-primary: #0F172A;
+      --text-muted: #475569;
+      --banner-from: #1E3A8A;
+      --banner-to: #0F172A;
+      --header-from: #1E3A8A;
+      --header-to: #2563EB;
+      --hero-badge-bg: #DBEAFE;
+      --hero-badge-text: #1E40AF;
+      --cta-gradient: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      --cta-shadow: rgba(16, 185, 129, 0.35);
+      --live-gradient: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+      --live-shadow: rgba(37, 99, 235, 0.35);
+      --device-bar: #1E3A8A;
+      --theme-glow: 0 0 25px rgba(37, 99, 235, 0.25);
     }
-    .badge-glow {
-      box-shadow: 0 0 15px rgba(59, 130, 246, 0.35);
+
+    /* 2. Theme: Rajdhani Sunset Flame (Crimson Red, Tangerine Coral & Gold) */
+    html[data-theme="rajdhani-sunset"] {
+      --primary: #DC2626;
+      --primary-hover: #B91C1C;
+      --primary-light: #FEF2F2;
+      --secondary: #450A0A;
+      --accent: #F97316;
+      --accent-glow: rgba(249, 115, 22, 0.45);
+      --bg-gradient-start: #FFF7ED;
+      --bg-gradient-mid: #FFFFFF;
+      --bg-gradient-end: #FEF2F2;
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(254, 215, 170, 0.85);
+      --card-border-hover: #EA580C;
+      --text-primary: #450A0A;
+      --text-muted: #78350F;
+      --banner-from: #991B1B;
+      --banner-to: #7C2D12;
+      --header-from: #991B1B;
+      --header-to: #EA580C;
+      --hero-badge-bg: #FFEDD5;
+      --hero-badge-text: #C2410C;
+      --cta-gradient: linear-gradient(135deg, #EA580C 0%, #DC2626 100%);
+      --cta-shadow: rgba(234, 88, 12, 0.4);
+      --live-gradient: linear-gradient(135deg, #B91C1C 0%, #7F1D1D 100%);
+      --live-shadow: rgba(185, 28, 28, 0.4);
+      --device-bar: #991B1B;
+      --theme-glow: 0 0 25px rgba(234, 88, 12, 0.28);
+    }
+
+    /* 3. Theme: Cyberpunk Neon Aurora (Midnight Onyx, Electric Neon Emerald, Cyan) */
+    html[data-theme="cyberpunk-neon"] {
+      --primary: #10B981;
+      --primary-hover: #059669;
+      --primary-light: #064E3B;
+      --secondary: #0A0F1D;
+      --accent: #06B6D4;
+      --accent-glow: rgba(6, 182, 212, 0.6);
+      --bg-gradient-start: #0B1120;
+      --bg-gradient-mid: #0F172A;
+      --bg-gradient-end: #090D16;
+      --card-bg: rgba(15, 23, 42, 0.88);
+      --card-border: rgba(16, 185, 129, 0.35);
+      --card-border-hover: #10B981;
+      --text-primary: #F8FAFC;
+      --text-muted: #94A3B8;
+      --banner-from: #022C22;
+      --banner-to: #0F172A;
+      --header-from: #047857;
+      --header-to: #0E7490;
+      --hero-badge-bg: rgba(16, 185, 129, 0.2);
+      --hero-badge-text: #34D399;
+      --cta-gradient: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
+      --cta-shadow: rgba(16, 185, 129, 0.5);
+      --live-gradient: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+      --live-shadow: rgba(139, 92, 246, 0.5);
+      --device-bar: #047857;
+      --theme-glow: 0 0 30px rgba(16, 185, 129, 0.35);
+    }
+
+    /* 4. Theme: Amethyst Royale (Imperial Purple, Electric Violet & Pink Rose) */
+    html[data-theme="amethyst-royale"] {
+      --primary: #9333EA;
+      --primary-hover: #7E22CE;
+      --primary-light: #FAF5FF;
+      --secondary: #3B0764;
+      --accent: #EC4899;
+      --accent-glow: rgba(236, 72, 153, 0.45);
+      --bg-gradient-start: #FAF5FF;
+      --bg-gradient-mid: #FFFFFF;
+      --bg-gradient-end: #FDF2F8;
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(233, 213, 255, 0.85);
+      --card-border-hover: #A855F7;
+      --text-primary: #3B0764;
+      --text-muted: #6B21A8;
+      --banner-from: #581C87;
+      --banner-to: #3B0764;
+      --header-from: #6B21A8;
+      --header-to: #9333EA;
+      --hero-badge-bg: #F3E8FF;
+      --hero-badge-text: #7E22CE;
+      --cta-gradient: linear-gradient(135deg, #9333EA 0%, #EC4899 100%);
+      --cta-shadow: rgba(147, 51, 234, 0.4);
+      --live-gradient: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+      --live-shadow: rgba(99, 102, 241, 0.4);
+      --device-bar: #581C87;
+      --theme-glow: 0 0 25px rgba(147, 51, 234, 0.3);
+    }
+
+    /* 5. Theme: High-Speed Forest Jade (Deep Pine, Mint Emerald & Electric Lime) */
+    html[data-theme="forest-jade"] {
+      --primary: #059669;
+      --primary-hover: #047857;
+      --primary-light: #ECFDF5;
+      --secondary: #064E3B;
+      --accent: #84CC16;
+      --accent-glow: rgba(132, 204, 22, 0.45);
+      --bg-gradient-start: #ECFDF5;
+      --bg-gradient-mid: #FFFFFF;
+      --bg-gradient-end: #F7FEE7;
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(167, 243, 208, 0.85);
+      --card-border-hover: #10B981;
+      --text-primary: #064E3B;
+      --text-muted: #14532D;
+      --banner-from: #064E3B;
+      --banner-to: #022C22;
+      --header-from: #065F46;
+      --header-to: #059669;
+      --hero-badge-bg: #D1FAE5;
+      --hero-badge-text: #047857;
+      --cta-gradient: linear-gradient(135deg, #059669 0%, #10B981 100%);
+      --cta-shadow: rgba(5, 150, 105, 0.4);
+      --live-gradient: linear-gradient(135deg, #0D9488 0%, #0F766E 100%);
+      --live-shadow: rgba(13, 148, 136, 0.4);
+      --device-bar: #064E3B;
+      --theme-glow: 0 0 25px rgba(5, 150, 105, 0.3);
+    }
+
+    /* 6. Theme: Coastal Oceanic Azure (Deep Marine, Aquamarine & Coral) */
+    html[data-theme="coastal-azure"] {
+      --primary: #0284C7;
+      --primary-hover: #0369A1;
+      --primary-light: #F0F9FF;
+      --secondary: #0C4A6E;
+      --accent: #F43F5E;
+      --accent-glow: rgba(244, 63, 94, 0.45);
+      --bg-gradient-start: #F0F9FF;
+      --bg-gradient-mid: #FFFFFF;
+      --bg-gradient-end: #ECFEFF;
+      --card-bg: rgba(255, 255, 255, 0.92);
+      --card-border: rgba(186, 230, 253, 0.85);
+      --card-border-hover: #0284C7;
+      --text-primary: #0C4A6E;
+      --text-muted: #0369A1;
+      --banner-from: #0C4A6E;
+      --banner-to: #082F49;
+      --header-from: #075985;
+      --header-to: #0284C7;
+      --hero-badge-bg: #E0F2FE;
+      --hero-badge-text: #0369A1;
+      --cta-gradient: linear-gradient(135deg, #0284C7 0%, #06B6D4 100%);
+      --cta-shadow: rgba(2, 132, 199, 0.4);
+      --live-gradient: linear-gradient(135deg, #F43F5E 0%, #E11D48 100%);
+      --live-shadow: rgba(244, 63, 94, 0.4);
+      --device-bar: #075985;
+      --theme-glow: 0 0 25px rgba(2, 132, 199, 0.3);
+    }
+
+    /* Base Transitions for smooth theme switching */
+    *, *::before, *::after {
+      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease, box-shadow 0.25s ease;
+    }
+
+    .theme-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+    }
+    .theme-card:hover {
+      border-color: var(--card-border-hover);
+    }
+
+    .theme-glow {
+      box-shadow: var(--theme-glow);
+    }
+
+    /* Active theme indicator ripple */
+    .active-theme-pill {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary);
+      border-radius: 9999px;
     }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans antialiased">
+<body class="min-h-screen flex flex-col font-sans antialiased text-[var(--text-primary)]" style="background: linear-gradient(180deg, var(--bg-gradient-start) 0%, var(--bg-gradient-mid) 50%, var(--bg-gradient-end) 100%);">
 
-  <!-- Top Announcement Bar -->
-  <aside class="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white text-xs sm:text-sm py-2 px-4 text-center font-medium border-b border-blue-800/50 flex items-center justify-center space-x-2">
-    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Native Android App</span>
-    <span>•</span>
-    <span>Indian Railways Officer Inspection & Compliance System (ROICMS)</span>
-    <span>•</span>
-    <span class="text-blue-200">Deployed via Vercel</span>
+  <!-- ========================================================================
+       TOP ANNOUNCEMENT BAR & QUICK STATUS
+       ======================================================================== -->
+  <aside style="background: linear-gradient(90deg, var(--banner-from), var(--banner-to));" class="text-white text-xs sm:text-sm py-2 px-4 text-center font-medium border-b border-white/10 shadow-sm relative z-50">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2 mx-auto sm:mx-0">
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+          ⚡ Native Android APK v1.4
+        </span>
+        <span class="hidden md:inline text-white/50">•</span>
+        <span class="hidden md:inline font-semibold">Indian Railways Officer Inspection & Compliance System (ROICMS)</span>
+        <span class="hidden lg:inline text-white/50">•</span>
+        <span class="hidden lg:inline text-blue-200">Room DB + Docx + Xlsx Dossiers</span>
+      </div>
+
+      <!-- Quick Theme Switcher Pill in Top Bar -->
+      <div class="flex items-center space-x-1.5 mx-auto sm:mx-0">
+        <span class="text-[11px] font-semibold text-white/80 flex items-center gap-1">
+          <span>🎨</span> <span class="hidden xs:inline">Theme:</span>
+        </span>
+        <div class="flex items-center space-x-1 bg-black/25 backdrop-blur-sm p-1 rounded-full border border-white/15">
+          <button onclick="setPortalTheme('vande-bharat')" title="Vande Bharat Sapphire" class="w-5 h-5 rounded-full bg-blue-600 border border-white/80 hover:scale-110 transform transition flex items-center justify-center text-[10px] text-white">🚆</button>
+          <button onclick="setPortalTheme('rajdhani-sunset')" title="Rajdhani Sunset Flame" class="w-5 h-5 rounded-full bg-red-600 border border-white/80 hover:scale-110 transform transition flex items-center justify-center text-[10px] text-white">🌅</button>
+          <button onclick="setPortalTheme('cyberpunk-neon')" title="Cyberpunk Neon" class="w-5 h-5 rounded-full bg-emerald-500 border border-white/80 hover:scale-110 transform transition flex items-center justify-center text-[10px] text-black font-bold">⚡</button>
+          <button onclick="setPortalTheme('amethyst-royale')" title="Amethyst Royale" class="w-5 h-5 rounded-full bg-purple-600 border border-white/80 hover:scale-110 transform transition flex items-center justify-center text-[10px] text-white">💜</button>
+          <button onclick="setPortalTheme('forest-jade')" title="Forest Jade" class="w-5 h-5 rounded-full bg-teal-600 border border-white/80 hover:scale-110 transform transition flex items-center justify-center text-[10px] text-white">🌿</button>
+          <button onclick="setPortalTheme('coastal-azure')" title="Coastal Azure" class="w-5 h-5 rounded-full bg-sky-500 border border-white/80 hover:scale-110 transform transition flex items-center justify-center text-[10px] text-white">🌊</button>
+        </div>
+      </div>
+    </div>
   </aside>
 
-  <!-- Header -->
-  <header class="bg-white/90 backdrop-blur sticky top-0 z-50 border-b border-slate-200 shadow-sm">
+  <!-- ========================================================================
+       MAIN HEADER / NAV
+       ======================================================================== -->
+  <header class="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand Logo & Title -->
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-blue-900 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-900/20">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold text-xl shadow-md transition" style="background: linear-gradient(135deg, var(--header-from), var(--header-to));">
           🚆
         </div>
         <div>
-          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">ROICMS Portal</h1>
-          <p class="text-xs text-slate-500 hidden sm:block">Indian Railways Inspection & Compliance Suite</p>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-extrabold leading-tight tracking-tight text-[var(--text-primary)]">ROICMS Portal</h1>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold text-white uppercase tracking-wider" style="background: var(--primary);">v1.4</span>
+          </div>
+          <p class="text-xs text-[var(--text-muted)] hidden sm:block">Indian Railways Inspection & Compliance Management System</p>
         </div>
       </div>
+
+      <!-- Nav Actions & Live Emulators -->
       <div class="flex items-center space-x-2 sm:space-x-3">
-        <a href="#how-to-run" class="text-xs sm:text-sm font-semibold text-slate-600 hover:text-blue-900 px-3 py-1.5 rounded-lg transition">How to Run</a>
-        <a href="#features" class="text-xs sm:text-sm font-semibold text-slate-600 hover:text-blue-900 px-3 py-1.5 rounded-lg transition hidden md:block">Features</a>
-        <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg shadow-sm hover:shadow transition transform active:scale-95">
+        
+        <!-- Interactive Theme Switcher Dropdown Trigger -->
+        <a href="#theme-showcase" class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <span>🎨</span>
+          <span class="hidden md:inline">Theme Switcher</span>
+        </a>
+
+        <!-- Download APK Button (Updated to fresh v1.4 build) -->
+        <a href="/roicms-railway-inspection.apk?v=1.4" download="roicms-railway-inspection.apk" class="inline-flex items-center space-x-1.5 text-white text-xs sm:text-sm font-bold px-3.5 py-2 rounded-lg shadow-md hover:brightness-110 active:scale-95 transition" style="background: var(--cta-gradient); box-shadow: 0 4px 14px var(--cta-shadow);">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          <span>Download APK</span>
+        </a>
+
+        <!-- Live Web App Launch Button -->
+        <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 text-white text-xs sm:text-sm font-bold px-3.5 py-2 rounded-lg shadow-md hover:brightness-110 active:scale-95 transition hidden xs:inline-flex" style="background: var(--live-gradient); box-shadow: 0 4px 14px var(--live-shadow);">
           <span>Launch Live App</span>
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
         </a>
@@ -75,181 +345,231 @@
     </div>
   </header>
 
-  <!-- Hero Section -->
+  <!-- ========================================================================
+       HERO SECTION
+       ======================================================================== -->
   <main class="flex-grow">
-    <section class="relative overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24 bg-gradient-to-b from-blue-50/70 via-white to-slate-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    
+    <section class="relative overflow-hidden pt-10 pb-16 lg:pt-16 lg:pb-24">
+      
+      <!-- Decorative radial ambient blur -->
+      <div class="absolute top-10 left-1/2 -translate-x-1/2 w-[700px] h-[350px] opacity-25 blur-3xl pointer-events-none rounded-full" style="background: var(--primary);"></div>
+      <div class="absolute top-40 right-10 w-[350px] h-[350px] opacity-20 blur-3xl pointer-events-none rounded-full" style="background: var(--accent);"></div>
+
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
+          <!-- Left Column: Copy & Actions -->
           <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
-            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-100/80 text-blue-800 text-xs font-semibold">
-              <span class="flex h-2 w-2 relative">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+            
+            <!-- Badge -->
+            <div class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-bold border transition shadow-sm" style="background: var(--hero-badge-bg); color: var(--hero-badge-text); border-color: var(--card-border);">
+              <span class="flex h-2.5 w-2.5 relative">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style="background: var(--primary);"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5" style="background: var(--primary);"></span>
               </span>
-              <span>Kotlin + Jetpack Compose • Android Native</span>
+              <span>Updated APK v1.4 • Real Offline Room DB • Export Word & Excel</span>
             </div>
 
-            <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              Indian Railways Officer Inspection & Compliance System
+            <!-- Main Heading with vibrant color highlight -->
+            <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight text-[var(--text-primary)]">
+              Indian Railways Officer Inspection & <span class="bg-clip-text text-transparent" style="background-image: linear-gradient(135deg, var(--primary), var(--accent));">Compliance Suite</span>
             </h2>
 
-            <p class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-              A mission-critical enterprise Android application for Railway Officers and Supervisors to schedule, conduct, geotag, and review track, station, and loco inspections with automated Microsoft Word (.docx) & Excel (.xlsx) dossier generation.
+            <p class="text-base sm:text-lg text-[var(--text-muted)] max-w-2xl mx-auto lg:mx-0 leading-relaxed font-normal">
+              A mission-critical enterprise Android application for Railway Officers and Supervisors to schedule, conduct, geotag, and review track, station, and loco inspections with automated Microsoft Word (<span class="font-semibold text-blue-600">.docx</span>) & Excel (<span class="font-semibold text-emerald-600">.xlsx</span>) official dossier generation.
             </p>
 
-            <!-- Notice Callout on Vercel deployment & Median.co -->
+            <!-- Important Notices & APK Update Announcement -->
             <div class="space-y-3">
-              <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm text-left shadow-sm">
+              
+              <!-- Fresh APK Confirmation Card -->
+              <div class="theme-card p-4 rounded-2xl shadow-sm text-left">
                 <div class="flex items-start space-x-3">
-                  <div class="text-lg flex-shrink-0">ℹ️</div>
+                  <div class="text-2xl flex-shrink-0">🚀</div>
                   <div>
-                    <h4 class="font-bold text-amber-950">Why did Vercel show 404 previously?</h4>
-                    <p class="text-xs sm:text-sm text-amber-800 mt-1 leading-relaxed">
-                      This repository is a <strong>Native Android Mobile App (Gradle & Kotlin)</strong> compiled into an <code>.apk</code> bundle. Vercel is a web host designed to serve HTML/JS files. We added this web portal to your GitHub repository so your Vercel deployment provides immediate access to live previews, APK download guides, and documentation.
+                    <div class="flex items-center gap-2">
+                      <h4 class="font-bold text-sm text-[var(--text-primary)]">Latest APK v1.4 Ready for Installation</h4>
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Fresh Build</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-[var(--text-muted)] mt-1 leading-relaxed">
+                      Includes full dossier Word/Excel export, bottom navigation padding fixes, compact card presentation layout, and theme contrast enhancements.
+                    </p>
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-xs font-mono">
+                      <span class="bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded">📦 roicms-railway-inspection.apk (29.9 MB)</span>
+                      <span class="bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded">📱 Jetpack Compose + Room</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Median.co & Vercel deployment explanation -->
+              <div class="theme-card p-4 rounded-2xl shadow-sm text-left opacity-95">
+                <div class="flex items-start space-x-3">
+                  <div class="text-2xl flex-shrink-0">💡</div>
+                  <div>
+                    <h4 class="font-bold text-sm text-[var(--text-primary)]">Why this Web Portal is hosted on Vercel:</h4>
+                    <p class="text-xs sm:text-sm text-[var(--text-muted)] mt-1 leading-relaxed">
+                      The core application is a <strong>Native Android Mobile App</strong> compiled into an <code>.apk</code>. We built this responsive web portal on Vercel so you and your team can download the APK directly, run the live web emulator, or customize themes with a single tap.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <!-- Median.co Help Callout -->
-              <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-sm text-left shadow-sm">
-                <div class="flex items-start space-x-3">
-                  <div class="text-lg flex-shrink-0">📱</div>
-                  <div>
-                    <h4 class="font-bold text-blue-950">Using Median.co for APK building?</h4>
-                    <p class="text-xs sm:text-sm text-blue-800 mt-1 leading-relaxed">
-                      If Median.co gave <strong>"URL not found"</strong>, it is usually because:
-                      <br>1. <strong>Do NOT include quotes:</strong> Paste <code class="bg-blue-100 px-1 py-0.5 rounded font-mono text-xs text-blue-900">https://railway-officer-inspection-f9ty.vercel.app/</code> (no quotation marks <code>" "</code>).
-                      <br>2. <strong>Better Alternative:</strong> You don't actually need Median.co! This repository already has a <strong>Native Android APK</strong> built with Kotlin and Jetpack Compose. You can download the real APK directly via <strong>GitHub Actions</strong> or <strong>Google AI Studio</strong> below.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            <!-- CTA Buttons -->
+            <!-- Primary Action Buttons -->
             <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
-              <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3.5 rounded-xl shadow-lg shadow-blue-600/30 transition transform hover:-translate-y-0.5">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span>Launch Interactive Web Emulator</span>
+              
+              <!-- Direct APK Download v1.4 -->
+              <a href="/roicms-railway-inspection.apk?v=1.4" download="roicms-railway-inspection.apk" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 text-white font-extrabold px-6 py-4 rounded-2xl shadow-xl transition transform hover:-translate-y-0.5 active:scale-95" style="background: var(--cta-gradient); box-shadow: 0 10px 25px var(--cta-shadow);">
+                <svg class="w-5 h-5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <span>Download Android APK (v1.4)</span>
               </a>
 
-              <a href="#how-to-run" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-white hover:bg-slate-100 text-slate-800 font-semibold px-6 py-3.5 rounded-xl border border-slate-300 shadow-sm transition">
-                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                <span>Get APK / Run on Device</span>
+              <!-- Alternative Debug APK -->
+              <a href="/app-debug.apk?v=1.4" download="app-debug.apk" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 theme-card text-[var(--text-primary)] font-bold px-5 py-4 rounded-2xl shadow-sm hover:border-[var(--primary)] transition">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <span>Download app-debug.apk</span>
               </a>
+
+              <!-- Live Streaming Emulator -->
+              <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 text-white font-bold px-5 py-4 rounded-2xl shadow-md transition transform hover:-translate-y-0.5 active:scale-95" style="background: var(--live-gradient); box-shadow: 0 8px 20px var(--live-shadow);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Live Browser Emulator</span>
+              </a>
+
             </div>
 
             <!-- Stats Bar -->
-            <div class="grid grid-cols-3 gap-4 pt-4 border-t border-slate-200 text-center sm:text-left">
+            <div class="grid grid-cols-3 gap-4 pt-4 border-t border-slate-200/80 dark:border-slate-800/80 text-center sm:text-left">
               <div>
-                <p class="text-2xl font-bold text-slate-900">100%</p>
-                <p class="text-xs text-slate-500 font-medium">Offline-First Room DB</p>
+                <p class="text-2xl font-extrabold text-[var(--primary)]">100%</p>
+                <p class="text-xs text-[var(--text-muted)] font-medium">Offline Room Database</p>
               </div>
               <div>
-                <p class="text-2xl font-bold text-blue-600">M3</p>
-                <p class="text-xs text-slate-500 font-medium">Material 3 Expressive UI</p>
+                <p class="text-2xl font-extrabold text-emerald-600">M3</p>
+                <p class="text-xs text-[var(--text-muted)] font-medium">Material 3 Expressive UI</p>
               </div>
               <div>
-                <p class="text-2xl font-bold text-indigo-600">Docx + Xlsx</p>
-                <p class="text-xs text-slate-500 font-medium">Automated Dossier Export</p>
+                <p class="text-2xl font-extrabold text-indigo-600">Docx + Xlsx</p>
+                <p class="text-xs text-[var(--text-muted)] font-medium">Complete Official Dossiers</p>
               </div>
             </div>
 
           </div>
 
-          <!-- Device Preview Mockup -->
+          <!-- Right Column: Interactive Phone Mockup with Active Theme Styling -->
           <div class="lg:col-span-5 flex justify-center">
-            <div class="relative w-[280px] sm:w-[320px] rounded-[42px] bg-slate-900 p-3 shadow-2xl border-4 border-slate-800 ring-1 ring-slate-700/50">
-              <!-- Camera Notch -->
-              <div class="absolute top-6 left-1/2 transform -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full z-20 flex items-center justify-center">
-                <div class="w-2.5 h-2.5 bg-slate-950 rounded-full border border-slate-800"></div>
+            <div class="relative w-[300px] sm:w-[330px] rounded-[48px] bg-slate-950 p-3.5 shadow-2xl border-4 border-slate-800 ring-4 ring-black/40 theme-glow">
+              
+              <!-- Camera Punch Hole -->
+              <div class="absolute top-6 left-1/2 transform -translate-x-1/2 w-28 h-4 bg-slate-950 rounded-full z-20 flex items-center justify-center">
+                <div class="w-3 h-3 bg-black rounded-full border border-slate-800"></div>
               </div>
 
-              <!-- Phone Screen Content -->
-              <div class="rounded-[32px] overflow-hidden bg-white text-slate-900 text-xs shadow-inner flex flex-col h-[580px] relative border border-slate-100">
+              <!-- Phone Screen Container -->
+              <div class="rounded-[36px] overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs shadow-inner flex flex-col h-[600px] relative border border-slate-200/50 dark:border-slate-800/50">
                 
-                <!-- Mock Header -->
-                <div class="bg-blue-900 text-white p-4 pt-7">
+                <!-- Phone Header (Adapts with Active Theme) -->
+                <div class="p-4 pt-8 text-white transition-all duration-300" style="background: linear-gradient(135deg, var(--banner-from), var(--device-bar));">
                   <div class="flex justify-between items-center">
                     <div>
-                      <p class="text-xs text-blue-200">Officer Portal</p>
-                      <p class="text-sm font-bold">RAVI • Dual-Role</p>
+                      <p class="text-[10px] text-white/70 tracking-wider uppercase font-semibold">ROICMS Officer Portal</p>
+                      <p class="text-sm font-bold flex items-center gap-1">
+                        <span>RAVI • Dual-Role Mode</span>
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      </p>
                     </div>
-                    <span class="px-2 py-0.5 rounded-full bg-blue-800 text-[10px] text-blue-200 font-semibold border border-blue-700">Online</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 backdrop-blur-sm border border-white/20">
+                      GPS Online
+                    </span>
                   </div>
-                  <!-- Stats Chips -->
-                  <div class="grid grid-cols-4 gap-1 text-center mt-3 bg-blue-950/60 p-1.5 rounded-lg text-[10px]">
-                    <div><span class="font-bold text-rose-400">2</span><br><span class="text-[8px] text-slate-300">Assigned</span></div>
-                    <div><span class="font-bold text-amber-300">0</span><br><span class="text-[8px] text-slate-300">Spot/Self</span></div>
-                    <div><span class="font-bold text-blue-300">1</span><br><span class="text-[8px] text-slate-300">Active</span></div>
-                    <div><span class="font-bold text-emerald-400">0</span><br><span class="text-[8px] text-slate-300">Done</span></div>
+
+                  <!-- Quick Stats Bar -->
+                  <div class="grid grid-cols-4 gap-1 text-center mt-3 bg-black/30 p-2 rounded-xl text-[10px] backdrop-blur-sm">
+                    <div><span class="font-extrabold text-rose-300">2</span><br><span class="text-[8px] text-slate-300">Assigned</span></div>
+                    <div><span class="font-extrabold text-amber-300">1</span><br><span class="text-[8px] text-slate-300">Spot/Self</span></div>
+                    <div><span class="font-extrabold text-cyan-300">1</span><br><span class="text-[8px] text-slate-300">Active</span></div>
+                    <div><span class="font-extrabold text-emerald-300">12</span><br><span class="text-[8px] text-slate-300">Done</span></div>
                   </div>
                 </div>
 
-                <!-- Mock Search & Actions -->
-                <div class="p-3 bg-slate-50 border-b border-slate-200 space-y-2">
-                  <div class="flex items-center space-x-2">
-                    <div class="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 flex-1 text-slate-400 flex items-center space-x-1.5">
+                <!-- Inspection Quick Bar -->
+                <div class="p-3 bg-white dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                  <div class="flex items-center space-x-1.5">
+                    <div class="bg-slate-100 dark:bg-slate-700/60 rounded-lg px-2.5 py-1.5 flex-1 text-slate-400 flex items-center space-x-1 text-[11px]">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                      <span>Search by #, type, location...</span>
+                      <span>Search #, station, loco...</span>
                     </div>
-                    <div class="bg-slate-200 text-slate-700 font-semibold px-2.5 py-1.5 rounded-lg flex items-center space-x-1">
-                      <span>Filters</span>
-                    </div>
+                    <button class="px-2 py-1.5 rounded-lg text-white font-bold text-[10px]" style="background: var(--primary);">+ New</button>
                   </div>
+                  
+                  <!-- Quick Filter Chips -->
                   <div class="flex space-x-1.5 overflow-x-hidden text-[10px]">
-                    <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">👁️ View Dossier</span>
-                    <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-medium">📊 Excel</span>
-                    <span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-medium">📄 Word</span>
+                    <span class="px-2 py-0.5 rounded-full font-bold text-white shadow-xs" style="background: var(--primary);">📋 Dossiers</span>
+                    <span class="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-semibold">📊 Excel</span>
+                    <span class="bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full font-semibold">📄 Word</span>
                   </div>
                 </div>
 
-                <!-- Mock Inspection Items -->
-                <div class="p-3 flex-1 overflow-y-auto space-y-2 bg-slate-100/50">
-                  <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-1">
+                <!-- Mock Inspection Cards -->
+                <div class="p-3 flex-1 overflow-y-auto space-y-2 bg-slate-100/60 dark:bg-slate-900/40">
+                  
+                  <!-- Inspection 1 -->
+                  <div class="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200/90 dark:border-slate-700/90 shadow-sm space-y-1">
                     <div class="flex justify-between items-center">
-                      <span class="font-bold text-slate-900 text-xs">INSP-2026-0042</span>
-                      <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">IN PROGRESS</span>
+                      <span class="font-extrabold text-[11px] text-[var(--primary)]">INSP-2026-0042</span>
+                      <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 text-[9px] font-extrabold">UNDER ACTION</span>
                     </div>
-                    <p class="font-semibold text-slate-800 text-xs">Station Joint Safety Inspection</p>
+                    <p class="font-bold text-xs text-slate-800 dark:text-slate-200">Track & Signal Safety Footplating</p>
                     <p class="text-[10px] text-slate-500">📍 New Delhi Central (NDLS) • Platform 4</p>
-                    <div class="pt-1 flex justify-between items-center text-[10px] text-slate-600 border-t border-slate-100 mt-1">
+                    <div class="pt-1 flex justify-between items-center text-[10px] text-slate-600 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/60 mt-1">
                       <span>Target: Today 14:00</span>
-                      <span class="text-blue-600 font-semibold">Resume &rarr;</span>
+                      <span class="font-bold text-[var(--primary)]">Preview Dossier &rarr;</span>
                     </div>
                   </div>
 
-                  <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-1">
+                  <!-- Inspection 2 -->
+                  <div class="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200/90 dark:border-slate-700/90 shadow-sm space-y-1">
                     <div class="flex justify-between items-center">
-                      <span class="font-bold text-slate-900 text-xs">INSP-2026-0039</span>
-                      <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[9px] font-bold">ASSIGNED</span>
+                      <span class="font-extrabold text-[11px] text-[var(--primary)]">INSP-2026-0039</span>
+                      <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 text-[9px] font-extrabold">ASSIGNED</span>
                     </div>
-                    <p class="font-semibold text-slate-800 text-xs">Footplating Section Inspection</p>
+                    <p class="font-bold text-xs text-slate-800 dark:text-slate-200">Locomotive Brake Rigging Check</p>
                     <p class="text-[10px] text-slate-500">📍 Ghaziabad - Kanpur Main Line</p>
-                    <div class="pt-1 flex justify-between items-center text-[10px] text-slate-600 border-t border-slate-100 mt-1">
-                      <span>Scheduled: 26 Sep 2026</span>
-                      <span class="text-emerald-600 font-semibold">Start &rarr;</span>
+                    <div class="pt-1 flex justify-between items-center text-[10px] text-slate-600 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/60 mt-1">
+                      <span>Scheduled: Oct 2026</span>
+                      <span class="font-bold text-emerald-600">Start Inspection &rarr;</span>
                     </div>
                   </div>
+
+                  <!-- Compliance Proof Preview -->
+                  <div class="bg-emerald-50/80 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-between text-[10px]">
+                    <div class="flex items-center space-x-1.5">
+                      <span class="text-sm">📸</span>
+                      <span class="font-semibold text-emerald-900 dark:text-emerald-300">Geo-tagged photo proofs verified</span>
+                    </div>
+                    <span class="font-bold text-emerald-700 dark:text-emerald-400">100% Valid</span>
+                  </div>
+
                 </div>
 
-                <!-- Mock Bottom Nav -->
-                <div class="bg-white border-t border-slate-200 px-4 py-2 flex justify-between items-center text-[9px] text-slate-500">
-                  <div class="text-blue-600 font-bold flex flex-col items-center">
+                <!-- Mock Bottom Navigation Bar -->
+                <div class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-2 flex justify-between items-center text-[9px] text-slate-500">
+                  <div class="font-bold flex flex-col items-center" style="color: var(--primary);">
                     <span>📋</span>
                     <span>Inspections</span>
                   </div>
-                  <div class="flex flex-col items-center">
+                  <div class="flex flex-col items-center hover:text-slate-700">
                     <span>⚠️</span>
                     <span>Compliances</span>
                   </div>
-                  <div class="flex flex-col items-center">
+                  <div class="flex flex-col items-center hover:text-slate-700">
                     <span>📊</span>
                     <span>Reports</span>
                   </div>
-                  <div class="flex flex-col items-center">
+                  <div class="flex flex-col items-center hover:text-slate-700">
                     <span>🛡️</span>
                     <span>Admin</span>
                   </div>
@@ -263,93 +583,298 @@
       </div>
     </section>
 
-    <!-- How to Run Section -->
-    <section id="how-to-run" class="py-16 bg-white border-t border-slate-200">
+    <!-- ========================================================================
+         INTERACTIVE THEME SWITCHER & PALETTES SHOWCASE
+         ======================================================================== -->
+    <section id="theme-showcase" class="py-16 theme-card border-y border-slate-200/80 dark:border-slate-800/80 relative">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center max-w-3xl mx-auto mb-10">
+          <span class="text-xs font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full border shadow-xs" style="background: var(--hero-badge-bg); color: var(--hero-badge-text); border-color: var(--card-border);">
+            🎨 Interactive Theme Switcher
+          </span>
+          <h3 class="text-2xl sm:text-3xl font-extrabold mt-3 text-[var(--text-primary)]">
+            Single-Tap Vibrant Themes for ROICMS
+          </h3>
+          <p class="text-sm sm:text-base text-[var(--text-muted)] mt-2">
+            Click any palette below to instantly transform this web portal's colors, gradients, glowing accents, and phone mockup. You can also view and copy the production CSS code for each theme.
+          </p>
+        </div>
+
+        <!-- Single-Tap Theme Grid Selector -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          
+          <!-- Theme 1: Vande Bharat Sapphire -->
+          <button onclick="setPortalTheme('vande-bharat')" id="card-theme-vande-bharat" class="theme-card rounded-2xl p-5 text-left hover:scale-[1.02] transform transition-all group relative overflow-hidden border-2 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">🚆</span>
+                <div>
+                  <h4 class="font-bold text-base text-slate-900 dark:text-slate-100">Vande Bharat Sapphire</h4>
+                  <p class="text-[11px] text-slate-500 font-medium">Royal Rail Blue & Gold</p>
+                </div>
+              </div>
+              <span class="theme-indicator px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">Active</span>
+            </div>
+            
+            <!-- Swatches -->
+            <div class="flex items-center space-x-2 my-3">
+              <span class="w-8 h-8 rounded-xl bg-[#2563EB] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#2563EB">Pri</span>
+              <span class="w-8 h-8 rounded-xl bg-[#0F172A] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#0F172A">Sec</span>
+              <span class="w-8 h-8 rounded-xl bg-[#F59E0B] shadow-sm flex items-center justify-center text-[10px] text-slate-900 font-bold" title="#F59E0B">Acc</span>
+              <span class="w-8 h-8 rounded-xl bg-[#10B981] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#10B981">CTA</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Official Indian Railways premier express aesthetic with deep royal navy, cobalt accents, and energetic amber highlights.
+            </p>
+          </button>
+
+          <!-- Theme 2: Rajdhani Sunset Flame -->
+          <button onclick="setPortalTheme('rajdhani-sunset')" id="card-theme-rajdhani-sunset" class="theme-card rounded-2xl p-5 text-left hover:scale-[1.02] transform transition-all group relative overflow-hidden border-2 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">🌅</span>
+                <div>
+                  <h4 class="font-bold text-base text-slate-900 dark:text-slate-100">Rajdhani Sunset Flame</h4>
+                  <p class="text-[11px] text-slate-500 font-medium">Crimson, Coral & Gold</p>
+                </div>
+              </div>
+              <span class="theme-indicator px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-300 hidden">Active</span>
+            </div>
+            
+            <!-- Swatches -->
+            <div class="flex items-center space-x-2 my-3">
+              <span class="w-8 h-8 rounded-xl bg-[#DC2626] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#DC2626">Pri</span>
+              <span class="w-8 h-8 rounded-xl bg-[#991B1B] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#991B1B">Sec</span>
+              <span class="w-8 h-8 rounded-xl bg-[#F97316] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#F97316">Acc</span>
+              <span class="w-8 h-8 rounded-xl bg-[#F59E0B] shadow-sm flex items-center justify-center text-[10px] text-slate-900 font-bold" title="#F59E0B">Gold</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Vibrant Indian Railways heritage maroon and Rajdhani express orange-crimson livery with warm sunset radiance.
+            </p>
+          </button>
+
+          <!-- Theme 3: Cyberpunk Neon Aurora -->
+          <button onclick="setPortalTheme('cyberpunk-neon')" id="card-theme-cyberpunk-neon" class="theme-card rounded-2xl p-5 text-left hover:scale-[1.02] transform transition-all group relative overflow-hidden border-2 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">⚡</span>
+                <div>
+                  <h4 class="font-bold text-base text-slate-900 dark:text-slate-100">Cyberpunk Neon</h4>
+                  <p class="text-[11px] text-slate-500 font-medium">Dark Onyx, Emerald & Cyan</p>
+                </div>
+              </div>
+              <span class="theme-indicator px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hidden">Active</span>
+            </div>
+            
+            <!-- Swatches -->
+            <div class="flex items-center space-x-2 my-3">
+              <span class="w-8 h-8 rounded-xl bg-[#10B981] shadow-sm flex items-center justify-center text-[10px] text-slate-950 font-bold" title="#10B981">Pri</span>
+              <span class="w-8 h-8 rounded-xl bg-[#0F172A] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#0F172A">Onyx</span>
+              <span class="w-8 h-8 rounded-xl bg-[#06B6D4] shadow-sm flex items-center justify-center text-[10px] text-slate-950 font-bold" title="#06B6D4">Cyan</span>
+              <span class="w-8 h-8 rounded-xl bg-[#8B5CF6] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#8B5CF6">Purp</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              High-contrast futuristic command center theme with neon glowing borders, midnight backdrop, and electric emerald telemetry.
+            </p>
+          </button>
+
+          <!-- Theme 4: Amethyst Royale -->
+          <button onclick="setPortalTheme('amethyst-royale')" id="card-theme-amethyst-royale" class="theme-card rounded-2xl p-5 text-left hover:scale-[1.02] transform transition-all group relative overflow-hidden border-2 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">💜</span>
+                <div>
+                  <h4 class="font-bold text-base text-slate-900 dark:text-slate-100">Amethyst Royale</h4>
+                  <p class="text-[11px] text-slate-500 font-medium">Imperial Orchid & Pink Rose</p>
+                </div>
+              </div>
+              <span class="theme-indicator px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 hidden">Active</span>
+            </div>
+            
+            <!-- Swatches -->
+            <div class="flex items-center space-x-2 my-3">
+              <span class="w-8 h-8 rounded-xl bg-[#9333EA] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#9333EA">Pri</span>
+              <span class="w-8 h-8 rounded-xl bg-[#3B0764] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#3B0764">Sec</span>
+              <span class="w-8 h-8 rounded-xl bg-[#EC4899] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#EC4899">Pink</span>
+              <span class="w-8 h-8 rounded-xl bg-[#6366F1] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#6366F1">Ind</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Polished luxury executive theme with deep imperial purple, radiant orchid highlights, and soft lavender card backdrops.
+            </p>
+          </button>
+
+          <!-- Theme 5: High-Speed Forest Jade -->
+          <button onclick="setPortalTheme('forest-jade')" id="card-theme-forest-jade" class="theme-card rounded-2xl p-5 text-left hover:scale-[1.02] transform transition-all group relative overflow-hidden border-2 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">🌿</span>
+                <div>
+                  <h4 class="font-bold text-base text-slate-900 dark:text-slate-100">Forest Jade & Mint</h4>
+                  <p class="text-[11px] text-slate-500 font-medium">Deep Pine, Jade & Electric Lime</p>
+                </div>
+              </div>
+              <span class="theme-indicator px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hidden">Active</span>
+            </div>
+            
+            <!-- Swatches -->
+            <div class="flex items-center space-x-2 my-3">
+              <span class="w-8 h-8 rounded-xl bg-[#059669] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#059669">Pri</span>
+              <span class="w-8 h-8 rounded-xl bg-[#064E3B] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#064E3B">Sec</span>
+              <span class="w-8 h-8 rounded-xl bg-[#84CC16] shadow-sm flex items-center justify-center text-[10px] text-slate-900 font-bold" title="#84CC16">Lime</span>
+              <span class="w-8 h-8 rounded-xl bg-[#10B981] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#10B981">Jade</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Eco-railway track inspection aesthetic with rich alpine emeralds, fresh mint pastels, and crisp lime status indicators.
+            </p>
+          </button>
+
+          <!-- Theme 6: Coastal Oceanic Azure -->
+          <button onclick="setPortalTheme('coastal-azure')" id="card-theme-coastal-azure" class="theme-card rounded-2xl p-5 text-left hover:scale-[1.02] transform transition-all group relative overflow-hidden border-2 cursor-pointer">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">🌊</span>
+                <div>
+                  <h4 class="font-bold text-base text-slate-900 dark:text-slate-100">Coastal Oceanic Azure</h4>
+                  <p class="text-[11px] text-slate-500 font-medium">Marine Sky, Aqua & Bright Coral</p>
+                </div>
+              </div>
+              <span class="theme-indicator px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300 hidden">Active</span>
+            </div>
+            
+            <!-- Swatches -->
+            <div class="flex items-center space-x-2 my-3">
+              <span class="w-8 h-8 rounded-xl bg-[#0284C7] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#0284C7">Pri</span>
+              <span class="w-8 h-8 rounded-xl bg-[#0C4A6E] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#0C4A6E">Sec</span>
+              <span class="w-8 h-8 rounded-xl bg-[#06B6D4] shadow-sm flex items-center justify-center text-[10px] text-slate-900 font-bold" title="#06B6D4">Aqua</span>
+              <span class="w-8 h-8 rounded-xl bg-[#F43F5E] shadow-sm flex items-center justify-center text-[10px] text-white font-bold" title="#F43F5E">Coral</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Airy maritime railway bridge aesthetic featuring deep marine shades, luminous cyan horizons, and vibrant coral callouts.
+            </p>
+          </button>
+
+        </div>
+
+        <!-- Theme CSS Code Inspector & Copy Feature -->
+        <div class="theme-card rounded-2xl p-6 border border-slate-200/90 dark:border-slate-800">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+            <div>
+              <h4 class="font-bold text-base text-[var(--text-primary)] flex items-center gap-2">
+                <span>📋</span>
+                <span>Active Theme CSS Properties</span>
+              </h4>
+              <p class="text-xs text-[var(--text-muted)] mt-0.5">
+                Ready-to-use CSS Variables currently applied to the document root:
+              </p>
+            </div>
+            <button onclick="copyCurrentThemeCSS()" id="btn-copy-css" class="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition active:scale-95" style="background: var(--primary);">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+              <span id="copy-btn-label">Copy CSS Variables</span>
+            </button>
+          </div>
+
+          <pre id="theme-css-code-display" class="mt-4 p-4 rounded-xl bg-slate-900 text-emerald-400 font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800"></pre>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         HOW TO RUN & INSTALL APK SECTION
+         ======================================================================== -->
+    <section id="how-to-run" class="py-16 bg-white/50 dark:bg-slate-900/50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center max-w-3xl mx-auto mb-12">
-          <span class="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Deployment & Execution</span>
-          <h3 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-3">How to Run & Deploy the Android Application</h3>
-          <p class="text-slate-600 text-sm sm:text-base mt-2">Choose the method that works best for your workflow:</p>
+          <span class="text-xs font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full border shadow-xs" style="background: var(--hero-badge-bg); color: var(--hero-badge-text); border-color: var(--card-border);">
+            Deployment & Installation
+          </span>
+          <h3 class="text-2xl sm:text-3xl font-extrabold mt-3 text-[var(--text-primary)]">
+            How to Run & Install the ROICMS Android APK
+          </h3>
+          <p class="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-2">
+            The app is fully compiled and ready. Choose your preferred installation option:
+          </p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          <!-- Method 1: Direct APK Download via GitHub Actions -->
-          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <!-- Method 1: Direct APK Download -->
+          <div class="theme-card rounded-2xl p-6 shadow-sm flex flex-col justify-between">
             <div>
-              <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xl mb-4">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-2xl mb-4 bg-emerald-100 text-emerald-700">
                 📦
               </div>
-              <h4 class="text-base font-bold text-slate-900">1. GitHub Actions APK</h4>
-              <p class="text-[11px] text-slate-500 mt-1 font-medium">Automatic Build on Every Push</p>
-              <p class="text-xs text-slate-600 mt-3 leading-relaxed">
-                A native <code>app-debug.apk</code> is automatically compiled by GitHub Actions. Go to your repository's <strong>Actions</strong> tab, click the latest workflow run, and download the <strong>ROICMS-Railway-Inspection-APK</strong> artifact.
+              <h4 class="text-base font-bold text-[var(--text-primary)]">1. Direct APK Download</h4>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1 font-medium">Fastest for Android Phones & Tablets</p>
+              <p class="text-xs text-[var(--text-muted)] mt-3 leading-relaxed">
+                Download the fresh <code>roicms-railway-inspection.apk</code> directly from this page onto your phone. Tap the downloaded file to install immediately.
               </p>
             </div>
             <div class="pt-6">
-              <span class="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md block text-center border border-purple-200">
-                Direct Android APK
-              </span>
+              <a href="/roicms-railway-inspection.apk?v=1.4" download="roicms-railway-inspection.apk" class="w-full inline-flex items-center justify-center space-x-1.5 text-white font-bold px-3 py-2.5 rounded-xl text-xs shadow-md transition" style="background: var(--cta-gradient);">
+                <span>Download APK v1.4</span>
+              </a>
             </div>
           </div>
 
-          <!-- Method 2: AI Studio APK -->
-          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <!-- Method 2: Google AI Studio APK -->
+          <div class="theme-card rounded-2xl p-6 shadow-sm flex flex-col justify-between">
             <div>
-              <div class="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xl mb-4">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-2xl mb-4 bg-indigo-100 text-indigo-700">
                 📱
               </div>
-              <h4 class="text-base font-bold text-slate-900">2. Google AI Studio APK</h4>
-              <p class="text-[11px] text-slate-500 mt-1 font-medium">1-Click from AI Studio</p>
-              <p class="text-xs text-slate-600 mt-3 leading-relaxed">
-                In Google AI Studio, open the top-right Settings/Project menu and select <strong>Download APK / Generate APK</strong> to get the installable APK file immediately.
+              <h4 class="text-base font-bold text-[var(--text-primary)]">2. Google AI Studio APK</h4>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1 font-medium">Official Cloud Generation</p>
+              <p class="text-xs text-[var(--text-muted)] mt-3 leading-relaxed">
+                In Google AI Studio, open the top-right Settings/Project menu and select <strong>Download APK / Generate APK</strong> to get the clean signed package.
               </p>
             </div>
             <div class="pt-6">
-              <a href="https://ais-dev-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center space-x-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold px-3 py-2 rounded-xl text-xs transition">
+              <a href="https://ais-dev-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center space-x-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold px-3 py-2.5 rounded-xl text-xs transition">
                 <span>Open AI Studio</span>
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
               </a>
             </div>
           </div>
 
-          <!-- Method 3: Instant Browser Emulator -->
-          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <!-- Method 3: Instant Browser Streaming -->
+          <div class="theme-card rounded-2xl p-6 shadow-sm flex flex-col justify-between">
             <div>
-              <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xl mb-4">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-2xl mb-4 bg-blue-100 text-blue-700">
                 🌐
               </div>
-              <h4 class="text-base font-bold text-slate-900">3. Browser Emulator</h4>
-              <p class="text-[11px] text-slate-500 mt-1 font-medium">Live Cloud Streaming</p>
-              <p class="text-xs text-slate-600 mt-3 leading-relaxed">
-                Stream the complete native Android app live in your web browser with zero installation. Works on any laptop or desktop.
+              <h4 class="text-base font-bold text-[var(--text-primary)]">3. Browser Emulator</h4>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1 font-medium">Instant Zero-Install Testing</p>
+              <p class="text-xs text-[var(--text-muted)] mt-3 leading-relaxed">
+                Stream the complete native Android app live inside your web browser on any Windows, Mac, or Linux computer without setting up Android Studio.
               </p>
             </div>
             <div class="pt-6">
-              <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center space-x-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-xl text-xs transition">
+              <a href="https://ais-pre-nyl24qbu5hufjpzvdjvnah-82225180298.asia-east1.run.app" target="_blank" rel="noopener noreferrer" class="w-full inline-flex items-center justify-center space-x-1 text-white font-bold px-3 py-2.5 rounded-xl text-xs transition" style="background: var(--live-gradient);">
                 <span>Launch Emulator</span>
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
               </a>
             </div>
           </div>
 
-          <!-- Method 4: Android Studio Build -->
-          <div class="glass-card rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+          <!-- Method 4: Android Studio Local Build -->
+          <div class="theme-card rounded-2xl p-6 shadow-sm flex flex-col justify-between">
             <div>
-              <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-xl mb-4">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-2xl mb-4 bg-purple-100 text-purple-700">
                 💻
               </div>
-              <h4 class="text-base font-bold text-slate-900">4. Android Studio</h4>
-              <p class="text-[11px] text-slate-500 mt-1 font-medium">For Developers & Customization</p>
-              <p class="text-xs text-slate-600 mt-3 leading-relaxed">
-                Clone the repo, open in Android Studio, and press <strong>Run ▶</strong> or execute in terminal:
+              <h4 class="text-base font-bold text-[var(--text-primary)]">4. Android Studio Build</h4>
+              <p class="text-[11px] text-[var(--text-muted)] mt-1 font-medium">For Developers & CI Pipelines</p>
+              <p class="text-xs text-[var(--text-muted)] mt-3 leading-relaxed">
+                Clone the repository, open in Android Studio, and press <strong>Run ▶</strong> or execute in your terminal:
               </p>
-              <div class="mt-2 p-2 rounded bg-slate-900 text-emerald-400 font-mono text-[10px] overflow-x-auto">
+              <div class="mt-2 p-2 rounded-lg bg-slate-900 text-emerald-400 font-mono text-[10px] overflow-x-auto">
                 gradle :app:assembleDebug
               </div>
             </div>
             <div class="pt-6">
-              <span class="text-[10px] font-semibold text-slate-500 block text-center">Output: <code>app-debug.apk</code></span>
+              <span class="text-[11px] font-semibold text-slate-500 block text-center">Output: <code>app-debug.apk</code></span>
             </div>
           </div>
 
@@ -357,65 +882,253 @@
       </div>
     </section>
 
-    <!-- Key Features Section -->
-    <section id="features" class="py-16 bg-slate-50 border-t border-slate-200">
+    <!-- ========================================================================
+         KEY ENTERPRISE CAPABILITIES
+         ======================================================================== -->
+    <section id="features" class="py-16 theme-card border-t border-slate-200/80 dark:border-slate-800/80">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
         <div class="text-center max-w-3xl mx-auto mb-12">
-          <span class="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-100/60 px-3 py-1 rounded-full">Enterprise Architecture</span>
-          <h3 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-3">Key Capabilities Built-in</h3>
+          <span class="text-xs font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full border shadow-xs" style="background: var(--hero-badge-bg); color: var(--hero-badge-text); border-color: var(--card-border);">
+            Railway Enterprise Architecture
+          </span>
+          <h3 class="text-2xl sm:text-3xl font-extrabold mt-3 text-[var(--text-primary)]">
+            Built-in Mission Critical Features
+          </h3>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-            <div class="text-2xl">⚡</div>
-            <h5 class="font-bold text-slate-900 text-base">Spot & Self Inspections</h5>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              On-demand field inspections with GPS coordinates, accuracy thresholds, and photo evidence validation.
+          <div class="theme-card p-5 rounded-2xl space-y-2.5">
+            <div class="text-3xl">⚡</div>
+            <h5 class="font-extrabold text-base text-[var(--text-primary)]">Spot & Self Inspections</h5>
+            <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+              On-demand field inspections with GPS coordinates, accuracy thresholds, offline room storage, and photo proof capture.
             </p>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-            <div class="text-2xl">📄</div>
-            <h5 class="font-bold text-slate-900 text-base">Word & Excel Dossiers</h5>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              Complete official Microsoft Word (.docx) and Excel (.xlsx) dossiers with in-app preview before download.
+          <div class="theme-card p-5 rounded-2xl space-y-2.5">
+            <div class="text-3xl">📄</div>
+            <h5 class="font-extrabold text-base text-[var(--text-primary)]">Word & Excel Dossiers</h5>
+            <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+              Comprehensive official Word (.docx) and Excel (.xlsx) dossiers with interactive in-app preview before download.
             </p>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-            <div class="text-2xl">⚠️</div>
-            <h5 class="font-bold text-slate-900 text-base">Compliance Tracking</h5>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              Assign action officers, set closure deadlines, log rectified photo proofs, and monitor overdue compliances.
+          <div class="theme-card p-5 rounded-2xl space-y-2.5">
+            <div class="text-3xl">⚠️</div>
+            <h5 class="font-extrabold text-base text-[var(--text-primary)]">Compliance Tracking</h5>
+            <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+              Assign action officers, set closure deadlines, log rectified photo proofs, and monitor overdue compliances with status chips.
             </p>
           </div>
 
-          <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-            <div class="text-2xl">🔄</div>
-            <h5 class="font-bold text-slate-900 text-base">Dual-Role Switcher</h5>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              Seamlessly toggle between Field Officer and Admin/HQ reviewer modes with role-based dashboard metrics.
+          <div class="theme-card p-5 rounded-2xl space-y-2.5">
+            <div class="text-3xl">🔄</div>
+            <h5 class="font-extrabold text-base text-[var(--text-primary)]">Dual-Role Switcher</h5>
+            <p class="text-xs text-[var(--text-muted)] leading-relaxed">
+              Seamlessly toggle between Field Officer and Admin/HQ reviewer modes with dedicated dashboards and live metrics.
             </p>
           </div>
 
         </div>
       </div>
     </section>
+
   </main>
 
-  <!-- Footer -->
-  <footer class="bg-slate-900 text-slate-400 py-8 text-xs border-t border-slate-800">
+  <!-- ========================================================================
+       FOOTER
+       ======================================================================== -->
+  <footer class="bg-slate-950 text-slate-400 py-8 text-xs border-t border-slate-800">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center space-x-2">
-        <span class="text-base">🚆</span>
-        <span class="font-semibold text-slate-200">Indian Railways Officer Inspection & Compliance Management System</span>
+        <span class="text-xl">🚆</span>
+        <span class="font-bold text-slate-200">ROICMS — Indian Railways Officer Inspection & Compliance Management System</span>
       </div>
-      <div>
-        <span>Built with Jetpack Compose & Kotlin • Deployed on Vercel</span>
+      <div class="flex items-center space-x-3">
+        <span>APK v1.4 Updated</span>
+        <span>•</span>
+        <span>Material 3 & Jetpack Compose</span>
+        <span>•</span>
+        <span>Vercel Hosted</span>
       </div>
     </div>
   </footer>
+
+  <!-- ========================================================================
+       THEME CONTROLLER & INTERACTIVE SWITCHER JAVASCRIPT
+       ======================================================================== -->
+  <script>
+    const THEMES = {
+      'vande-bharat': {
+        name: 'Vande Bharat Sapphire',
+        css: `/* Theme: Vande Bharat Sapphire */
+html[data-theme="vande-bharat"] {
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --secondary: #0F172A;
+  --accent: #F59E0B;
+  --accent-glow: rgba(245, 158, 11, 0.4);
+  --bg-gradient-start: #F0F7FF;
+  --bg-gradient-mid: #FFFFFF;
+  --bg-gradient-end: #F8FAFC;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(191, 219, 254, 0.8);
+  --banner-from: #1E3A8A;
+  --banner-to: #0F172A;
+}`
+      },
+      'rajdhani-sunset': {
+        name: 'Rajdhani Sunset Flame',
+        css: `/* Theme: Rajdhani Sunset Flame */
+html[data-theme="rajdhani-sunset"] {
+  --primary: #DC2626;
+  --primary-hover: #B91C1C;
+  --secondary: #450A0A;
+  --accent: #F97316;
+  --accent-glow: rgba(249, 115, 22, 0.45);
+  --bg-gradient-start: #FFF7ED;
+  --bg-gradient-mid: #FFFFFF;
+  --bg-gradient-end: #FEF2F2;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(254, 215, 170, 0.85);
+  --banner-from: #991B1B;
+  --banner-to: #7C2D12;
+}`
+      },
+      'cyberpunk-neon': {
+        name: 'Cyberpunk Neon Aurora',
+        css: `/* Theme: Cyberpunk Neon Aurora */
+html[data-theme="cyberpunk-neon"] {
+  --primary: #10B981;
+  --primary-hover: #059669;
+  --secondary: #0A0F1D;
+  --accent: #06B6D4;
+  --accent-glow: rgba(6, 182, 212, 0.6);
+  --bg-gradient-start: #0B1120;
+  --bg-gradient-mid: #0F172A;
+  --bg-gradient-end: #090D16;
+  --card-bg: rgba(15, 23, 42, 0.88);
+  --card-border: rgba(16, 185, 129, 0.35);
+  --banner-from: #022C22;
+  --banner-to: #0F172A;
+}`
+      },
+      'amethyst-royale': {
+        name: 'Amethyst Royale',
+        css: `/* Theme: Amethyst Royale */
+html[data-theme="amethyst-royale"] {
+  --primary: #9333EA;
+  --primary-hover: #7E22CE;
+  --secondary: #3B0764;
+  --accent: #EC4899;
+  --accent-glow: rgba(236, 72, 153, 0.45);
+  --bg-gradient-start: #FAF5FF;
+  --bg-gradient-mid: #FFFFFF;
+  --bg-gradient-end: #FDF2F8;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(233, 213, 255, 0.85);
+  --banner-from: #581C87;
+  --banner-to: #3B0764;
+}`
+      },
+      'forest-jade': {
+        name: 'Forest Jade & Mint',
+        css: `/* Theme: Forest Jade & Mint */
+html[data-theme="forest-jade"] {
+  --primary: #059669;
+  --primary-hover: #047857;
+  --secondary: #064E3B;
+  --accent: #84CC16;
+  --accent-glow: rgba(132, 204, 22, 0.45);
+  --bg-gradient-start: #ECFDF5;
+  --bg-gradient-mid: #FFFFFF;
+  --bg-gradient-end: #F7FEE7;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(167, 243, 208, 0.85);
+  --banner-from: #064E3B;
+  --banner-to: #022C22;
+}`
+      },
+      'coastal-azure': {
+        name: 'Coastal Oceanic Azure',
+        css: `/* Theme: Coastal Oceanic Azure */
+html[data-theme="coastal-azure"] {
+  --primary: #0284C7;
+  --primary-hover: #0369A1;
+  --secondary: #0C4A6E;
+  --accent: #F43F5E;
+  --accent-glow: rgba(244, 63, 94, 0.45);
+  --bg-gradient-start: #F0F9FF;
+  --bg-gradient-mid: #FFFFFF;
+  --bg-gradient-end: #ECFEFF;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(186, 230, 253, 0.85);
+  --banner-from: #0C4A6E;
+  --banner-to: #082F49;
+}`
+      }
+    };
+
+    function setPortalTheme(themeKey) {
+      if (!THEMES[themeKey]) themeKey = 'vande-bharat';
+      
+      // Update HTML attribute
+      document.documentElement.setAttribute('data-theme', themeKey);
+      
+      // Save in localStorage for persistent preference
+      try {
+        localStorage.setItem('roicms_portal_theme', themeKey);
+      } catch (e) {}
+
+      // Update UI active card states
+      Object.keys(THEMES).forEach(key => {
+        const card = document.getElementById('card-theme-' + key);
+        if (card) {
+          const indicator = card.querySelector('.theme-indicator');
+          if (key === themeKey) {
+            card.classList.add('active-theme-pill');
+            if (indicator) indicator.classList.remove('hidden');
+          } else {
+            card.classList.remove('active-theme-pill');
+            if (indicator) indicator.classList.add('hidden');
+          }
+        }
+      });
+
+      // Update CSS code display
+      const display = document.getElementById('theme-css-code-display');
+      if (display && THEMES[themeKey]) {
+        display.textContent = THEMES[themeKey].css;
+      }
+    }
+
+    function copyCurrentThemeCSS() {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'vande-bharat';
+      const css = THEMES[currentTheme] ? THEMES[currentTheme].css : '';
+      
+      navigator.clipboard.writeText(css).then(() => {
+        const label = document.getElementById('copy-btn-label');
+        if (label) {
+          const original = label.textContent;
+          label.textContent = 'Copied to Clipboard! ✓';
+          setTimeout(() => {
+            label.textContent = original;
+          }, 2000);
+        }
+      });
+    }
+
+    // Initialize theme from localStorage or default
+    document.addEventListener('DOMContentLoaded', () => {
+      let savedTheme = 'vande-bharat';
+      try {
+        savedTheme = localStorage.getItem('roicms_portal_theme') || 'vande-bharat';
+      } catch (e) {}
+      setPortalTheme(savedTheme);
+    });
+  </script>
 
 </body>
 </html>

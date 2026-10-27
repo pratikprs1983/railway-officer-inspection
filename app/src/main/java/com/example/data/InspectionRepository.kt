@@ -36,9 +36,74 @@ class InspectionRepository {
         }
     }
 
+    // Categories
+    fun getCategoriesForType(typeId: String): Flow<List<FormCategory>> = inspectionDao.getCategoriesForType(typeId)
+
+    fun addCategory(category: FormCategory, onComplete: (Boolean) -> Unit = {}) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                inspectionDao.insertCategory(category)
+                FirebaseSyncManager.syncCategory(category)
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    fun deleteCategory(category: FormCategory, onComplete: (Boolean) -> Unit = {}) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                inspectionDao.deleteCategory(category)
+                inspectionDao.deleteCategoryById(category.id)
+                inspectionDao.deleteSubcategoriesByCategoryId(category.id)
+                inspectionDao.deleteFieldsByCategoryId(category.id)
+                FirebaseSyncManager.deleteCategory(category.id)
+                FirebaseSyncManager.deleteSubcategoriesByCategoryId(category.id)
+                FirebaseSyncManager.deleteFieldsByCategoryId(category.id)
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    // Subcategories
+    fun getSubcategoriesForType(typeId: String): Flow<List<FormSubcategory>> = inspectionDao.getSubcategoriesForType(typeId)
+
+    fun getSubcategoriesForCategory(categoryId: String): Flow<List<FormSubcategory>> = inspectionDao.getSubcategoriesForCategory(categoryId)
+
+    fun addSubcategory(subcategory: FormSubcategory, onComplete: (Boolean) -> Unit = {}) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                inspectionDao.insertSubcategory(subcategory)
+                FirebaseSyncManager.syncSubcategory(subcategory)
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    fun deleteSubcategory(subcategory: FormSubcategory, onComplete: (Boolean) -> Unit = {}) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                inspectionDao.deleteSubcategory(subcategory)
+                inspectionDao.deleteSubcategoryById(subcategory.id)
+                inspectionDao.deleteFieldsBySubcategory(subcategory.id, subcategory.categoryId, subcategory.name)
+                FirebaseSyncManager.deleteSubcategory(subcategory.id)
+                FirebaseSyncManager.deleteFieldsBySubcategory(subcategory.id, subcategory.categoryId, subcategory.name)
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    // Fields
     fun getInspectionFields(typeId: String): Flow<List<InspectionField>> = inspectionDao.getInspectionFields(typeId)
 
-    fun addInspectionField(field: InspectionField, onComplete: (Boolean) -> Unit) {
+    fun addInspectionField(field: InspectionField, onComplete: (Boolean) -> Unit = {}) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 inspectionDao.insertInspectionField(field)
@@ -50,14 +115,28 @@ class InspectionRepository {
         }
     }
     
-    fun deleteInspectionField(field: InspectionField, onComplete: (Boolean) -> Unit) {
+    fun deleteInspectionField(field: InspectionField, onComplete: (Boolean) -> Unit = {}) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 inspectionDao.deleteInspectionField(field)
+                inspectionDao.deleteFieldById(field.id)
                 FirebaseSyncManager.deleteInspectionField(field.id)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(true) }
             } catch (e: Exception) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    fun purgeOrphanedFormData(typeId: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                inspectionDao.purgeOrphanedSubcategories(typeId)
+                inspectionDao.purgeOrphanedCategoryFields(typeId)
+                inspectionDao.purgeOrphanedSubcategoryFields(typeId)
+                FirebaseSyncManager.purgeOrphanedFormDataInFirestore(typeId)
+            } catch (e: Exception) {
+                android.util.Log.e("InspectionRepository", "Error purging orphaned form data: ${e.message}")
             }
         }
     }
@@ -91,10 +170,26 @@ class InspectionRepository {
     fun deleteInspection(inspection: Inspection, onComplete: (Boolean) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val db = MyApplication.instance.database
+                // 1. Delete all compliances associated with this inspection from Room
+                db.complianceDao().deleteCompliancesForInspection(inspection.id, inspection.inspectionNumber)
+
+                // 2. Delete all notifications associated with this inspection from Room
+                db.notificationDao().deleteNotificationsForInspection(inspection.id, inspection.inspectionNumber)
+
+                // 3. Delete the inspection itself from Room
                 inspectionDao.deleteInspection(inspection)
-                FirebaseSyncManager.deleteInspection(inspection.id)
+                inspectionDao.deleteInspectionById(inspection.id)
+
+                // 4. Cascade delete from Cloud Firestore (inspection + compliances + notifications)
+                FirebaseSyncManager.deleteInspection(inspection.id, inspection.inspectionNumber)
+
+                // 5. Purge any stray orphaned compliances
+                ComplianceRepository().purgeOrphanedCompliances()
+
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(true) }
             } catch (e: Exception) {
+                android.util.Log.e("InspectionRepository", "Error cascade deleting inspection: ${e.message}", e)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete(false) }
             }
         }

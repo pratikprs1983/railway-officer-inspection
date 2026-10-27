@@ -43,15 +43,39 @@ data class InspectionType(
 enum class FieldType {
     TEXT, TEXTAREA, NUMBER, DATE, TIME, YES_NO, DROPDOWN, MULTI_SELECT, PHOTO, VIDEO, PDF, DOCUMENT, GPS, SELFIE, SIGNATURE
 }
+
+@Entity(tableName = "form_categories")
+data class FormCategory(
+    @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
+    val inspectionTypeId: String = "",
+    val name: String = "",
+    val displayOrder: Int = 0,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "form_subcategories")
+data class FormSubcategory(
+    @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
+    val categoryId: String = "",
+    val inspectionTypeId: String = "",
+    val name: String = "",
+    val displayOrder: Int = 0,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "inspection_fields")
 data class InspectionField(
     @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val inspectionTypeId: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val subcategoryId: String = "",
+    val subcategoryName: String = "",
     val label: String = "",
     val fieldName: String = "",
     val fieldType: FieldType = FieldType.TEXT,
     val required: Boolean = false,
-    val options: String = "", // Changed to String to store comma separated options for Room
+    val options: String = "", // Comma separated options for Room
     val placeholder: String = "",
     val helpText: String = "",
     val displayOrder: Int = 0,
@@ -64,3 +88,4 @@ data class InspectionField(
         // Not a direct setter for data class but we can just use options in constructor
     }
 }
+
